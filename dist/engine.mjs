@@ -26,7 +26,9 @@ export function normalize(text) {
 }
 
 export function fromNames(text, catalog) {
-  const requested = text.split(/[,;\n]+/).map(value => value.trim()).filter(Boolean);
+  // «телефон и наушники» читается как список из двух названий.
+  const requested = text.replace(/\s+(?:и|а также|плюс)\s+/giu, ',')
+    .split(/[,;\n]+/).map(value => value.trim()).filter(Boolean);
   if (requested.length === 1) {
     const whole = normalize(requested[0]);
     const exact = catalog.find(asset => [asset.label, ...asset.aliases].some(alias => normalize(alias) === whole));
@@ -230,11 +232,14 @@ export function parsePalette(text) {
   try { data = JSON.parse(text); } catch { data = text; }
   const raw = typeof data === 'string' ? data.trim().split(/[\s,;]+/) :
     (Array.isArray(data) ? data : data?.colors);
-  if (!Array.isArray(raw) || raw.length !== 8 ||
-      !raw.every(color => typeof color === 'string' && /^#[\da-f]{6}$/i.test(color))) {
-    throw Error('Нужно 8 HEX-цветов. Сначала 4 для фона, затем 4 для объектов.');
+  // Короткая запись #abc разворачивается в #aabbcc.
+  const full = Array.isArray(raw) ? raw.map(color => typeof color === 'string' && /^#[\da-f]{3}$/i.test(color)
+    ? '#' + [...color.slice(1)].map(digit => digit + digit).join('') : color) : raw;
+  if (!Array.isArray(full) || full.length !== 8 ||
+      !full.every(color => typeof color === 'string' && /^#[\da-f]{6}$/i.test(color))) {
+    throw Error('Нужно 8 HEX-цветов вида #aabbcc или #abc. Сначала 4 для фона, затем 4 для объектов.');
   }
-  return raw.map(color => color.toLowerCase());
+  return full.map(color => color.toLowerCase());
 }
 
 export function newLayer(assetId, key, role = 'main') {

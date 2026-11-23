@@ -30,6 +30,8 @@ test('component names support aliases, Cyrillic, duplicates, and explicit misses
   assert.deepEqual(result.assets.map(asset => asset.id), ['book','puzzles','wallet','book']);
   assert.deepEqual(result.missing, ['фотоаппарат']);
   assert.deepEqual(fromNames('книга пазлы', CATALOG).assets.map(asset => asset.id), ['book','puzzles']);
+  assert.deepEqual(fromNames('телефон и наушники', CATALOG).assets.map(asset => asset.id), ['phone','headphones']);
+  assert.deepEqual(parsePalette('#fff #000 #abc #123456 #111 #222 #333 #444').slice(0, 3), ['#ffffff', '#000000', '#aabbcc']);
 });
 
 test('offline meaning picks two main objects and one background from the library', () => {

@@ -558,7 +558,9 @@ function normalize(text) {
 }
 
 function fromNames(text, catalog) {
-  const requested = text.split(/[,;\n]+/).map(value => value.trim()).filter(Boolean);
+  // «телефон и наушники» читается как список из двух названий.
+  const requested = text.replace(/\s+(?:и|а также|плюс)\s+/giu, ',')
+    .split(/[,;\n]+/).map(value => value.trim()).filter(Boolean);
   if (requested.length === 1) {
     const whole = normalize(requested[0]);
     const exact = catalog.find(asset => [asset.label, ...asset.aliases].some(alias => normalize(alias) === whole));
@@ -762,11 +764,14 @@ function parsePalette(text) {
   try { data = JSON.parse(text); } catch { data = text; }
   const raw = typeof data === 'string' ? data.trim().split(/[\s,;]+/) :
     (Array.isArray(data) ? data : data?.colors);
-  if (!Array.isArray(raw) || raw.length !== 8 ||
-      !raw.every(color => typeof color === 'string' && /^#[\da-f]{6}$/i.test(color))) {
-    throw Error('Нужно 8 HEX-цветов. Сначала 4 для фона, затем 4 для объектов.');
+  // Короткая запись #abc разворачивается в #aabbcc.
+  const full = Array.isArray(raw) ? raw.map(color => typeof color === 'string' && /^#[\da-f]{3}$/i.test(color)
+    ? '#' + [...color.slice(1)].map(digit => digit + digit).join('') : color) : raw;
+  if (!Array.isArray(full) || full.length !== 8 ||
+      !full.every(color => typeof color === 'string' && /^#[\da-f]{6}$/i.test(color))) {
+    throw Error('Нужно 8 HEX-цветов вида #aabbcc или #abc. Сначала 4 для фона, затем 4 для объектов.');
   }
-  return raw.map(color => color.toLowerCase());
+  return full.map(color => color.toLowerCase());
 }
 
 function newLayer(assetId, key, role = 'main') {
@@ -1251,15 +1256,19 @@ async function compose(event) {
   let result;
   if (mode === 'names') {
     const found = fromNames(input, CATALOG);
-    if (found.missing.length) {
+    if (!found.assets.length) {
       note(`В библиотеке нет: ${found.missing.join(', ')}. Проверь названия в каталоге.`, true);
+      announce('Ничего не собрано');
       return;
     }
     if (found.assets.length > 8) {
       note('Для одной автоматической раскладки выбери до 8 объектов. Остальные можно добавить на холст из библиотеки.', true);
       return;
     }
-    result = { source: 'names', objects: found.assets.map(asset => ({ id: asset.id, role: 'main', reason: '' })) };
+    result = {
+      source: 'names', objects: found.assets.map(asset => ({ id: asset.id, role: 'main', reason: '' })),
+      warning: found.missing.length ? `Пропущено, нет в библиотеке: ${found.missing.join(', ')}.` : '',
+    };
   } else {
     result = await meaningResult(input);
   }
@@ -1267,6 +1276,7 @@ async function compose(event) {
     note(aiReady() ? 'Совпадений не нашлось. Переформулируй заголовок.' :
       'Словарь не нашёл знакомых смыслов. Уточни тему (чтение, звук, бюджет) или подключи ИИ.', true);
     explain(null);
+    announce('Ничего не собрано, сцена прежняя');
     return;
   }
   const layers = result.objects.map(item => newLayer(item.id, layerKey(), item.role));

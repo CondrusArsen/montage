@@ -263,15 +263,19 @@ async function compose(event) {
   let result;
   if (mode === 'names') {
     const found = fromNames(input, CATALOG);
-    if (found.missing.length) {
+    if (!found.assets.length) {
       note(`В библиотеке нет: ${found.missing.join(', ')}. Проверь названия в каталоге.`, true);
+      announce('Ничего не собрано');
       return;
     }
     if (found.assets.length > 8) {
       note('Для одной автоматической раскладки выбери до 8 объектов. Остальные можно добавить на холст из библиотеки.', true);
       return;
     }
-    result = { source: 'names', objects: found.assets.map(asset => ({ id: asset.id, role: 'main', reason: '' })) };
+    result = {
+      source: 'names', objects: found.assets.map(asset => ({ id: asset.id, role: 'main', reason: '' })),
+      warning: found.missing.length ? `Пропущено, нет в библиотеке: ${found.missing.join(', ')}.` : '',
+    };
   } else {
     result = await meaningResult(input);
   }
@@ -279,6 +283,7 @@ async function compose(event) {
     note(aiReady() ? 'Совпадений не нашлось. Переформулируй заголовок.' :
       'Словарь не нашёл знакомых смыслов. Уточни тему (чтение, звук, бюджет) или подключи ИИ.', true);
     explain(null);
+    announce('Ничего не собрано, сцена прежняя');
     return;
   }
   const layers = result.objects.map(item => newLayer(item.id, layerKey(), item.role));
