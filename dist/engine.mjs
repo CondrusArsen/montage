@@ -1,4 +1,5 @@
 import { CATALOG } from './assets.mjs';
+import { MASKS, MASK_CELL } from './masks.mjs';
 
 export const FORMATS = {
   wide: { label: 'Горизонтальный', width: 1200, height: 630 },
@@ -121,56 +122,110 @@ function intersection(a, b) {
   return area({ x0: Math.max(a.x0, b.x0), y0: Math.max(a.y0, b.y0), x1: Math.min(a.x1, b.x1), y1: Math.min(a.y1, b.y1) });
 }
 
-// Оценка позиции: объект должен быть виден, не прятать соседей и не лезть в зону текста.
-function placementCost(r, placed, frame, zone, rank) {
-  const visible = intersection(r, frame) / area(r);
-  let cost = (1 - visible) * 10 + rank * .08;
-  for (const other of placed) {
-    const overlap = intersection(r, other) / Math.min(area(r), area(other));
-    cost += Math.max(0, overlap - .28) * 5;
+// ---------- Силуэты ----------
+// Маски из dist/masks.mjs: занятые клетки сетки MASK_CELL×MASK_CELL единиц L.
+const SILHOUETTES = new Map(Object.entries(MASKS).map(([id, roles]) => {
+  const { cols, rows, bits } = roles.main;
+  const bytes = typeof atob === 'function'
+    ? Uint8Array.from(atob(bits), char => char.charCodeAt(0))
+    : Uint8Array.from(Buffer.from(bits, 'base64'));
+  const grid = new Uint8Array(cols * rows);
+  const cells = [];
+  for (let index = 0; index < cols * rows; index++) {
+    if (bytes[index >> 3] >> (index & 7) & 1) {
+      grid[index] = 1;
+      cells.push(index % cols, Math.floor(index / cols));
+    }
   }
-  if (zone) cost += intersection(r, zone) / area(r) * 8;
+  return [id, { cols, rows, grid, cells: Int16Array.from(cells), filled: cells.length / 2 }];
+}));
+
+// Объект на холсте: рамка, масштаб и силуэт.
+function shape(assetId, cx, cy, scale) {
+  const r = rect(cx, cy, sizeOf(assetId, scale));
+  return { assetId, cx, cy, r, step: MASK_CELL * scale, mask: SILHOUETTES.get(assetId) };
+}
+
+function covers(s, x, y) {
+  const col = Math.floor((x - s.r.x0) / s.step);
+  const row = Math.floor((y - s.r.y0) / s.step);
+  return col >= 0 && row >= 0 && col < s.mask.cols && row < s.mask.rows && s.mask.grid[row * s.mask.cols + col] === 1;
+}
+
+// Доля силуэта, которая проходит проверку: в кадре, в зоне заголовка и т. п.
+function share(s, test) {
+  const { cells, filled } = s.mask;
+  let count = 0;
+  for (let i = 0; i < cells.length; i += 2) {
+    const x = s.r.x0 + (cells[i] + .5) * s.step;
+    const y = s.r.y0 + (cells[i + 1] + .5) * s.step;
+    if (test(x, y)) count++;
+  }
+  return count / filled;
+}
+
+// Насколько силуэты двух объектов закрывают друг друга, доля меньшего.
+function overlap(a, b) {
+  if (!intersection(a.r, b.r)) return 0;
+  const [small, large] = a.mask.filled * a.step ** 2 <= b.mask.filled * b.step ** 2 ? [a, b] : [b, a];
+  return share(small, (x, y) => covers(large, x, y));
+}
+
+const inside = r => (x, y) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1;
+
+// Оценка позиции: объект виден в кадре, не наезжает на соседей и не лезет в зону текста.
+function placementCost(s, placed, frame, zone, rank) {
+  let cost = (1 - share(s, inside(frame))) * 16 + rank * .06;
+  for (const other of placed) cost += Math.max(0, overlap(s, other) - .02) * 14;
+  if (zone) cost += share(s, inside(zone)) * 8;
   return cost;
 }
 
 function placeMain(layer, hero, placed, scale, frame, zone, style) {
   const size = sizeOf(layer.assetId, scale);
-  const heroSize = { w: hero.x1 - hero.x0, h: hero.y1 - hero.y0 };
-  const cx = (hero.x0 + hero.x1) / 2;
-  const cy = (hero.y0 + hero.y1) / 2;
+  const heroSize = { w: hero.r.x1 - hero.r.x0, h: hero.r.y1 - hero.r.y0 };
   let best = null;
   PREFERRED[style].forEach((index, rank) => {
     const [kx, ky] = SECONDARY[index];
-    for (const reach of [.35, .5, .65]) {
-      const x = cx + kx * (heroSize.w * reach * .78 + size.w * .42);
-      const y = cy + ky * (heroSize.h * reach * .55 + size.h * .4);
-      const r = rect(x, y, size);
-      const cost = placementCost(r, placed, frame, zone, rank) + reach * .3;
-      if (!best || cost < best.cost) best = { cost, x, y, r };
+    for (const reach of [.2, .32, .45, .58, .72, .88]) {
+      const x = hero.cx + kx * (heroSize.w * reach * .78 + size.w * .42);
+      const y = hero.cy + ky * (heroSize.h * reach * .55 + size.h * .4);
+      const candidate = shape(layer.assetId, x, y, scale);
+      // Ближе к главному объекту лучше: композиция должна оставаться собранной.
+      const cost = placementCost(candidate, placed, frame, zone, rank) + reach * .9;
+      if (!best || cost < best.cost) best = { cost, shape: candidate };
     }
   });
-  return best;
+  return best.shape;
 }
 
-function placeBackground(layer, placed, scale, frame, zone, heroCenter) {
+function placeBackground(layer, mains, scale, frame, zone, heroCenter, used) {
   const size = sizeOf(layer.assetId, scale);
-  const corners = [[0, 0], [1, 0], [0, 1], [1, 1]];
   let best = null;
-  for (const [ux, uy] of corners) {
+  for (const [ux, uy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
     // Центр силуэта чуть внутри угла: в кадре остаётся около половины объекта.
     const x = ux * frame.x1 + (ux ? -1 : 1) * size.w * .18;
     const y = uy * frame.y1 + (uy ? -1 : 1) * size.h * .18;
-    const r = rect(x, y, size);
-    const covered = placed.reduce((sum, other) => sum + intersection(r, other), 0) / area(r);
+    const candidate = shape(layer.assetId, x, y, scale);
+    const hidden = mains.reduce((sum, other) => sum + share(candidate, (px, py) => covers(other, px, py)), 0);
+    const crowded = used.reduce((sum, other) => sum + overlap(candidate, other), 0);
     const distance = Math.hypot(x - heroCenter[0], y - heroCenter[1]) / Math.hypot(frame.x1, frame.y1);
-    const cost = covered * 2 + (zone ? intersection(r, zone) / area(r) * 3 : 0) - distance;
-    if (!best || cost < best.cost) best = { cost, x, y, r };
+    const cost = hidden * 2 + crowded * 3 + (zone ? share(candidate, inside(zone)) * 3 : 0) - distance;
+    if (!best || cost < best.cost) best = { cost, shape: candidate };
   }
-  return best;
+  return best.shape;
 }
 
-// Раскладывает слои и возвращает масштаб сцены. Порядок отрисовки: фон, затем главные
-// объекты от крупного к мелкому, чтобы мелкий предмет не прятался за крупным.
+// Глубина изометрии: чей силуэт ниже в кадре, тот ближе к зрителю и рисуется позже.
+function depthOf(s) {
+  const { cells, rows } = s.mask;
+  let lowest = 0;
+  for (let i = 1; i < cells.length; i += 2) lowest = Math.max(lowest, cells[i]);
+  return s.r.y0 + (Math.min(lowest, rows - 1) + 1) * s.step;
+}
+
+// Раскладывает слои и возвращает масштаб сцены. Порядок отрисовки: фоновые силуэты,
+// затем главные объекты от дальнего к ближнему.
 export function layoutScene(layers, format, style) {
   if (!layers.length) return { layers: [], scale: FORMAT_BASE[format] };
   const { width, height } = FORMATS[format];
@@ -180,37 +235,32 @@ export function layoutScene(layers, format, style) {
   const scale = autoScale(layers, format, style);
   const mains = layers.filter(layer => layer.role === 'main');
   const backgrounds = layers.filter(layer => layer.role !== 'main');
-  const positions = new Map();
-  const placed = [];
-  let heroRect = null;
+  const shapes = new Map();
   const [hx, hy] = STYLE[style].hero[format];
   const anchor = anchorOf(mains);
   const queue = anchor ? [anchor, ...mains.filter(layer => layer !== anchor)] : [];
-  queue.forEach((layer, index) => {
-    if (index === 0) {
-      heroRect = rect(hx * width, hy * height, sizeOf(layer.assetId, scale));
-      placed.push(heroRect);
-      positions.set(layer.key, [hx * width, hy * height]);
-      return;
-    }
-    const spot = placeMain(layer, heroRect, placed, scale, frame, zone, style);
-    placed.push(spot.r);
-    positions.set(layer.key, [spot.x, spot.y]);
-  });
-  const heroCenter = heroRect ? [(heroRect.x0 + heroRect.x1) / 2, (heroRect.y0 + heroRect.y1) / 2] : [width / 2, height / 2];
-  const usedCorners = [];
-  for (const layer of backgrounds) {
-    const spot = placeBackground(layer, [...placed, ...usedCorners], scale, frame, zone, heroCenter);
-    usedCorners.push(spot.r);
-    positions.set(layer.key, [spot.x, spot.y]);
+  let hero = null;
+  for (const layer of queue) {
+    const placed = [...shapes.values()];
+    const spot = hero ? placeMain(layer, hero, placed, scale, frame, zone, style)
+      : shape(layer.assetId, hx * width, hy * height, scale);
+    hero ||= spot;
+    shapes.set(layer.key, spot);
   }
-  const footprint = layer => { const { w, h } = sizeOf(layer.assetId, 1); return w * h; };
-  const ordered = [...backgrounds, ...[...mains].sort((a, b) => footprint(b) - footprint(a))];
+  const mainShapes = [...shapes.values()];
+  const heroCenter = hero ? [hero.cx, hero.cy] : [width / 2, height / 2];
+  const used = [];
+  for (const layer of backgrounds) {
+    const spot = placeBackground(layer, mainShapes, scale, frame, zone, heroCenter, used);
+    used.push(spot);
+    shapes.set(layer.key, spot);
+  }
+  const ordered = [...backgrounds, ...[...mains].sort((a, b) => depthOf(shapes.get(a.key)) - depthOf(shapes.get(b.key)))];
   return {
     scale,
     layers: ordered.map(layer => {
-      const [x, y] = positions.get(layer.key);
-      return { ...layer, x: +(x / width).toFixed(4), y: +(y / height).toFixed(4) };
+      const { cx, cy } = shapes.get(layer.key);
+      return { ...layer, x: +(cx / width).toFixed(4), y: +(cy / height).toFixed(4) };
     }),
   };
 }
@@ -220,11 +270,11 @@ export function placeAdded(scene, layer) {
   const { width, height } = FORMATS[scene.format];
   const scale = scene.scale * (scene.fit || 1);
   const frame = { x0: 0, y0: 0, x1: width, y1: height };
-  const placed = scene.layers.map(item => rect(item.x * width, item.y * height, sizeOf(item.assetId, scale)));
+  const placed = scene.layers.map(item => shape(item.assetId, item.x * width, item.y * height, scale));
   const hero = placed[scene.layers.findIndex(item => item.role === 'main')] ||
-    rect(width / 2, height / 2, { w: width * .3, h: height * .3 });
+    { cx: width / 2, cy: height / 2, r: rect(width / 2, height / 2, { w: width * .3, h: height * .3 }) };
   const spot = placeMain(layer, hero, placed, scale, frame, null, 'compact');
-  return { ...layer, x: +clamp(spot.x / width, .02, .98).toFixed(4), y: +clamp(spot.y / height, .02, .98).toFixed(4) };
+  return { ...layer, x: +clamp(spot.cx / width, .02, .98).toFixed(4), y: +clamp(spot.cy / height, .02, .98).toFixed(4) };
 }
 
 export function parsePalette(text) {

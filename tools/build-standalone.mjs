@@ -4,7 +4,7 @@ const dist = new URL('../dist/', import.meta.url);
 const output = new URL('../standalone/', import.meta.url);
 const read = name => readFile(new URL(name, dist), 'utf-8');
 const [css, mark, ...modules] = await Promise.all(
-  ['studio.css', 'mark.svg', 'assets.mjs', 'semantics.mjs', 'engine.mjs', 'vector.mjs', 'ai.mjs', 'examples.mjs'].map(read),
+  ['studio.css', 'mark.svg', 'assets.mjs', 'masks.mjs', 'semantics.mjs', 'engine.mjs', 'vector.mjs', 'ai.mjs', 'examples.mjs'].map(read),
 );
 const icon = 'data:image/svg+xml,' + encodeURIComponent(mark);
 
