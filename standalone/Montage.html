@@ -234,6 +234,12 @@ textarea::placeholder, .text-input::placeholder { color: var(--faint); }
 .canvas-object .hover-ring { fill: none; stroke: #6553a6; stroke-width: 1.2px; vector-effect: non-scaling-stroke; stroke-dasharray: 2 3; opacity: 0; pointer-events: none; transition: opacity .12s; }
 .canvas-object:hover .hover-ring { opacity: .75; }
 .stage.is-dragging, .stage.is-dragging .canvas-object { cursor: grabbing; }
+.artboard { overflow: visible; }
+.rotate-handle { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M18 8a7.5 7.5 0 1 0 .9 7' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M18 8a7.5 7.5 0 1 0 .9 7' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3Cpath d='M18.5 3v5.3h-5.3' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M18.5 3v5.3h-5.3' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 12 12, alias; }
+.rotate-handle circle { fill: #fff; stroke: #6553a6; stroke-width: 1.6px; vector-effect: non-scaling-stroke; filter: drop-shadow(0 1px 2px #0005); transition: fill .12s; }
+.rotate-handle path { fill: none; stroke: #6553a6; stroke-width: 1.6px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+.rotate-handle:hover circle, .stage.is-rotating .rotate-handle circle { fill: #ece7fb; }
+.stage.is-rotating, .stage.is-rotating * { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M18 8a7.5 7.5 0 1 0 .9 7' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3Cpath d='M18.5 3v5.3h-5.3' fill='none' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E") 12 12, alias; }
 .stage.is-dragging .hover-ring { opacity: 0; }
 .selection { fill: #6553a60d; stroke: #6553a6; stroke-width: 1.6px; vector-effect: non-scaling-stroke; stroke-dasharray: 5 3; pointer-events: none; }
 .title-guide { fill: #ffffff33; stroke: #6553a6; stroke-width: 1.3px; stroke-dasharray: 6 5; vector-effect: non-scaling-stroke; pointer-events: none; }
@@ -333,6 +339,28 @@ dialog::backdrop { background: #07080699; backdrop-filter: blur(3px); }
 .shortcuts dt { display: flex; gap: 4px; justify-content: flex-end; }
 .shortcuts dd { margin: 0; color: var(--muted); }
 
+/* ---------- Обучение ---------- */
+.tour { position: fixed; inset: 0; z-index: 10; }
+.tour-spot {
+  position: fixed; border-radius: 14px; pointer-events: none;
+  box-shadow: 0 0 0 3px var(--violet), 0 0 0 9999px #050604b8;
+  transition: top .35s var(--ease), left .35s var(--ease), width .35s var(--ease), height .35s var(--ease);
+}
+.tour-card {
+  position: fixed; width: min(340px, calc(100vw - 24px)); padding: 18px; border-radius: 16px;
+  background: var(--surface); border: 1px solid var(--stroke-strong); box-shadow: var(--shadow-pop);
+  transition: top .35s var(--ease), left .35s var(--ease); animation: rise .3s var(--ease);
+}
+.tour-card h3 { margin: 10px 0 6px; font-size: 1.08rem; letter-spacing: -.03em; }
+.tour-card p { color: var(--muted); font-size: .9rem; line-height: 1.5; }
+.tour-progress { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--violet-ink); font-size: .74rem; font-weight: 750; text-transform: uppercase; letter-spacing: .05em; }
+.tour-dots { display: flex; gap: 5px; }
+.tour-dots i { width: 6px; height: 6px; border-radius: 3px; background: var(--stroke-strong); transition: width .25s var(--ease), background-color .25s var(--ease); }
+.tour-dots i.on { width: 18px; background: var(--violet); }
+.tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
+.tour-nav { display: flex; gap: 8px; }
+.tour-nav .button { min-height: 36px; padding: 6px 13px; }
+
 /* ---------- Адаптивность ---------- */
 @media (min-width: 1500px) {
   .workspace { gap: 18px; padding-inline: 28px; }
@@ -381,6 +409,7 @@ dialog::backdrop { background: #07080699; backdrop-filter: blur(3px); }
   <header class="topbar">
     <a class="brand" href="Montage.html" aria-label="Монтаж, главная"><img src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2040%2040%22%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2238%22%20height%3D%2238%22%20rx%3D%2211%22%20fill%3D%22%23e5f1ab%22%20stroke%3D%22%2322251c%22%20stroke-width%3D%221.5%22%2F%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%2322251c%22%20stroke-width%3D%221.6%22%20stroke-linejoin%3D%22round%22%20d%3D%22m8.5%2018.1%2011.5-7%2011.5%207-11.5%207zm0%204.9L20%2030l11.5-7m-17-8.5%2011.7%207%22%2F%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2218.1%22%20r%3D%221.6%22%20fill%3D%22%2322251c%22%2F%3E%3C%2Fsvg%3E%0A" alt="">Монтаж<span class="brand-divider"></span><span class="brand-label">Конструктор иллюстраций</span></a>
     <div class="top-actions">
+      <button id="tour-open" class="icon-button" type="button" title="Пройти обучение заново" aria-label="Обучение"><span data-icon="help"></span></button>
       <button id="shortcuts-open" class="icon-button" type="button" title="Горячие клавиши" aria-label="Горячие клавиши"><span data-icon="keyboard"></span></button>
       <button id="theme-toggle" class="icon-button theme-toggle" type="button" title="Светлая или тёмная тема" aria-label="Переключить тему"><span class="sun" data-icon="sun"></span><span class="moon" data-icon="moon"></span></button>
       <button id="examples-open" class="button button-quiet" type="button"><span data-icon="grid"></span><span class="button-label">Примеры</span></button>
@@ -469,6 +498,21 @@ dialog::backdrop { background: #07080699; backdrop-filter: blur(3px); }
     </aside>
   </main>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="tour" class="tour" hidden>
+    <div class="tour-spot" aria-hidden="true"></div>
+    <section class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+      <div class="tour-progress"><span id="tour-count"></span><div id="tour-dots" class="tour-dots" aria-hidden="true"></div></div>
+      <h3 id="tour-title"></h3>
+      <p id="tour-text"></p>
+      <div class="tour-actions">
+        <button type="button" id="tour-skip" class="link-button">Пропустить</button>
+        <span class="tour-nav">
+          <button type="button" id="tour-back" class="button button-quiet">Назад</button>
+          <button type="button" id="tour-next" class="button button-accent">Далее</button>
+        </span>
+      </div>
+    </section>
+  </div>
   <dialog id="palette-dialog" aria-labelledby="palette-heading">
     <form id="palette-form">
       <header class="dialog-header"><h2 id="palette-heading">Своя палитра</h2><button type="button" class="icon-button" data-close data-icon="close" aria-label="Закрыть"></button></header>
@@ -1016,15 +1060,43 @@ function thumbnail(asset, size) {
   return `<svg viewBox="${box.join(' ')}" aria-hidden="true" focusable="false">${recolor(body, PALETTES.iris.colors)}</svg>`;
 }
 
+function sceneScale(scene) {
+  const base = Number.isFinite(scene.scale) ? scene.scale : autoScale(scene.layers, scene.format, scene.layout);
+  return base * (scene.fit || 1) * (scene.size === 'L' ? 1 : S_FACTOR);
+}
+
+// Ручка поворота: правый нижний угол рамки выбранного объекта с учётом его поворота.
+// uiScale — сколько единиц кадра приходится на один пиксель экрана.
+function rotateHandle(scene, layer, uiScale = 1) {
+  const { width, height } = FORMATS[scene.format];
+  const { box: [, , w, h] } = ASSETS.get(layer.assetId).variants[scene.size][layer.role];
+  const scale = sceneScale(scene);
+  const r = 11 * uiScale;
+  const radians = layer.angle * Math.PI / 180;
+  const dx = w * scale / 2 + r * .9;
+  const dy = h * scale / 2 + r * .9;
+  const x = layer.x * width + dx * Math.cos(radians) - dy * Math.sin(radians);
+  const y = layer.y * height + dx * Math.sin(radians) + dy * Math.cos(radians);
+  const pad = r * 1.2;
+  return { x: fixed(Math.min(width - pad, Math.max(pad, x))), y: fixed(Math.min(height - pad, Math.max(pad, y))), r: fixed(r) };
+}
+
+function handleMarkup(handle) {
+  const { x, y, r } = handle;
+  const k = r / 11;
+  // Круглая ручка со стрелкой поворота внутри.
+  return `<g class="rotate-handle" data-rotate transform="translate(${x} ${y})"><circle r="${r}"/>` +
+    `<path transform="scale(${fixed(k)})" d="M4.6 -1.8A5 5 0 1 0 4.2 3.4M4.6 -1.8V-5.6M4.6 -1.8H0.8"/></g>`;
+}
+
 function objectTransform(scene, layer) {
   const { width, height } = FORMATS[scene.format];
   const { box: [x, y, w, h] } = ASSETS.get(layer.assetId).variants[scene.size][layer.role];
-  const base = Number.isFinite(scene.scale) ? scene.scale : autoScale(scene.layers, scene.format, scene.layout);
-  const scale = base * (scene.fit || 1) * (scene.size === 'L' ? 1 : S_FACTOR);
+  const scale = sceneScale(scene);
   return `translate(${fixed(layer.x * width)} ${fixed(layer.y * height)}) rotate(${fixed(layer.angle)}) scale(${fixed(scale)}) translate(${fixed(-x - w / 2)} ${fixed(-y - h / 2)})`;
 }
 
-function sceneSVG(scene, { editor = false, selected = null, zoom = 1 } = {}) {
+function sceneSVG(scene, { editor = false, selected = null, zoom = 1, uiScale = 1 } = {}) {
   const { width, height } = FORMATS[scene.format];
   const colors = scene.palette === 'custom' ? scene.custom : PALETTES[scene.palette].colors;
   const source = BACKDROPS[scene.size][scene.palette === 'custom' ? 'iris' : scene.palette];
@@ -1051,9 +1123,11 @@ function sceneSVG(scene, { editor = false, selected = null, zoom = 1 } = {}) {
   const z = TITLE_ZONE[scene.format];
   const guide = editor && scene.layout === 'title' ?
     `<rect class="title-guide" x="${z[0] * width + 18}" y="${z[1] * height + 18}" width="${(z[2] - z[0]) * width - 36}" height="${(z[3] - z[1]) * height - 36}" rx="10"/>` : '';
+  const current = editor && scene.layers.find(layer => layer.key === selected);
+  const handle = current ? handleMarkup(rotateHandle(scene, current, uiScale)) : '';
   const id = editor ? 'editor-frame' : 'export-frame';
   const controls = editor ? ` class="artboard" role="img" aria-label="Холст композиции" data-zoom="${zoom}"` : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"${controls}><title>${escape(scene.title || 'Композиция')}</title><defs><clipPath id="${id}"><rect width="${width}" height="${height}"/></clipPath></defs><g clip-path="url(#${id})">${backdrop}${groups}${guide}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"${controls}><title>${escape(scene.title || 'Композиция')}</title><defs><clipPath id="${id}"><rect width="${width}" height="${height}"/></clipPath></defs><g clip-path="url(#${id})">${backdrop}${groups}${guide}</g>${handle}</svg>`;
 }
 
 // Смысловой подбор через языковую модель. Модель только выбирает ID из библиотеки:
@@ -1235,6 +1309,7 @@ const icons = {
   keyboard: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.8M12 17h.01"/>',
 };
 
 const storageKey = 'montage-illustration-scene-v2';
@@ -1362,6 +1437,12 @@ function renderCatalog() {
   renderedSize = scene.size;
 }
 
+// Сколько единиц кадра приходится на пиксель экрана: ручки держат постоянный экранный размер.
+function uiScale() {
+  const width = $('#artboard-shell').getBoundingClientRect().width * zoom;
+  return width ? FORMATS[scene.format].width / width : 1;
+}
+
 function renderCanvas() {
   const format = FORMATS[scene.format];
   const shell = $('#artboard-shell');
@@ -1369,7 +1450,7 @@ function renderCanvas() {
   const available = Math.min(500, Math.max(260, window.innerHeight * .50));
   shell.style.maxWidth = `${Math.round(available * ratio)}px`;
   artboard.style.setProperty('--zoom', zoom);
-  artboard.innerHTML = sceneSVG(scene, { editor: true, selected, zoom });
+  artboard.innerHTML = sceneSVG(scene, { editor: true, selected, zoom, uiScale: uiScale() });
   $('#frame-label').textContent = `${format.width} × ${format.height} · ${scene.size}`;
   $('#zoom-reset').textContent = `${Math.round(zoom * 100)}%`;
   $('#zoom-out').disabled = zoom <= .5;
@@ -1607,33 +1688,59 @@ function download() {
 
 function dragStart(event) {
   if (event.button !== 0) return;
+  const box = $('.artboard').getBoundingClientRect();
+  // Ручка поворота: вращаем выбранный объект вокруг его центра.
+  if (event.target.closest('[data-rotate]') && selected) {
+    const layer = scene.layers.find(item => item.key === selected);
+    const center = [box.left + layer.x * box.width, box.top + layer.y * box.height];
+    const start = Math.atan2(event.clientY - center[1], event.clientX - center[0]);
+    drag = { mode: 'rotate', before: scene, key: selected, layer, center, start, pointer: event.pointerId };
+    artboard.setPointerCapture(event.pointerId);
+    stage.classList.add('is-rotating');
+    return;
+  }
   const key = event.target.closest('[data-layer]')?.dataset.layer;
   if (!key) { select(null); return; }
   const layer = scene.layers.find(item => item.key === key);
-  const box = $('.artboard').getBoundingClientRect();
-  drag = { before: scene, key, x: event.clientX, y: event.clientY, layer, box, pointer: event.pointerId };
+  drag = { mode: 'move', before: scene, key, x: event.clientX, y: event.clientY, layer, box, pointer: event.pointerId };
   select(key);
   artboard.setPointerCapture(event.pointerId);
   stage.classList.add('is-dragging');
 }
 
+function applyLive(changed) {
+  scene = { ...scene, layers: scene.layers.map(item => item.key === drag.key ? changed : item) };
+  const group = [...artboard.querySelectorAll('[data-layer]')].find(node => node.dataset.layer === drag.key);
+  group.setAttribute('transform', objectTransform(scene, changed));
+  const handle = rotateHandle(scene, changed, uiScale());
+  artboard.querySelector('.rotate-handle')?.setAttribute('transform', `translate(${handle.x} ${handle.y})`);
+}
+
 function dragMove(event) {
   if (!drag || event.pointerId !== drag.pointer) return;
+  if (drag.mode === 'rotate') {
+    const now = Math.atan2(event.clientY - drag.center[1], event.clientX - drag.center[0]);
+    let angle = drag.layer.angle + (now - drag.start) * 180 / Math.PI;
+    angle = ((angle + 180) % 360 + 360) % 360 - 180;
+    // С Shift угол шагает по 15°, чтобы легко выставить ровно.
+    angle = event.shiftKey ? Math.round(angle / 15) * 15 : Math.round(angle);
+    if (angle === -180) angle = 180;
+    applyLive({ ...drag.layer, angle });
+    $('#angle').value = angle;
+    return;
+  }
   const clamp = value => Math.min(.98, Math.max(.02, value));
   const x = clamp(drag.layer.x + (event.clientX - drag.x) / drag.box.width);
   const y = clamp(drag.layer.y + (event.clientY - drag.y) / drag.box.height);
   if (scene === drag.before && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 3) return;
-  const changed = { ...drag.layer, x, y };
-  scene = { ...scene, layers: scene.layers.map(item => item.key === drag.key ? changed : item) };
-  const group = [...artboard.querySelectorAll('[data-layer]')].find(node => node.dataset.layer === drag.key);
-  group.setAttribute('transform', objectTransform(scene, changed));
+  applyLive({ ...drag.layer, x, y });
 }
 
 function dragEnd(event) {
   if (!drag || event.pointerId !== drag.pointer) return;
   const { before, key } = drag;
   drag = null;
-  stage.classList.remove('is-dragging');
+  stage.classList.remove('is-dragging', 'is-rotating');
   if (event.type === 'pointercancel') { scene = before; render(); return; }
   if (scene !== before) commit(scene, key, before);
 }
@@ -1838,6 +1945,89 @@ window.addEventListener('keydown', event => {
   }
 });
 
+// ---------- Обучение для новых пользователей ----------
+// Подсветка нужного места и короткая подсказка. Запускается при первом визите и по кнопке «?».
+const TOUR = [
+  { target: '.setup-form', title: 'Начни с заголовка', text: 'Напиши заголовок статьи или метафору, например «Удалёнка без выгорания». На вкладке «По объектам» можно просто перечислить предметы: «папка, кошелёк, монета».' },
+  { target: '#compose-button', title: 'Собери композицию', text: 'Сервис выберет 2–3 предмета из библиотеки и разложит их крупным планом. Под кнопкой появится объяснение, почему выбраны именно они.' },
+  { target: '#ai-row', title: 'ИИ — по желанию', text: 'Без ключа работает встроенный словарь ассоциаций. Подключи OpenRouter, OpenAI или Gemini, и модель сама найдёт метафору даже для сложного заголовка.' },
+  { target: '#stage', title: 'Правь прямо на холсте', text: 'Тяни объект мышью, чтобы переместить. Выбранный объект можно повернуть ручкой в правом нижнем углу рамки; с Shift угол меняется шагами по 15°.' },
+  { target: '.layer-panel', title: 'Слои', text: 'Здесь порядок слоёв, роль «главный/фоновый», точный угол, копия и удаление. Ctrl+Z отменяет любое действие.' },
+  { target: '.settings-panel', title: 'Формат и масштаб', text: 'Три формата кадра, детализация S/L и три раскладки. «Масштаб сцены» меняет все объекты вместе: пропорции между ними сохраняются, как требует библиотека.' },
+  { target: '.palette-panel', title: 'Цвета', text: 'Готовые палитры или своя: 8 HEX-цветов текстом или файлом JSON. Все объекты перекрашиваются автоматически.' },
+  { target: '#export', title: 'Скачай SVG', text: 'Получится векторный файл: каждый объект — отдельная группа с исходными контурами. Его можно открыть и доработать в Figma или Illustrator.' },
+];
+const tourKey = 'montage-tour-done-v1';
+let tourStep = -1;
+
+function placeTour() {
+  if (tourStep < 0) return;
+  const step = TOUR[tourStep];
+  const target = $(step.target);
+  const rect = target.getBoundingClientRect();
+  const pad = 6;
+  const spot = $('.tour-spot');
+  Object.assign(spot.style, {
+    top: `${rect.top - pad}px`, left: `${rect.left - pad}px`, width: `${rect.width + pad * 2}px`, height: `${rect.height + pad * 2}px`,
+  });
+  const card = $('.tour-card');
+  const { width, height } = card.getBoundingClientRect();
+  const gap = 16;
+  const fits = {
+    right: rect.right + gap + width < innerWidth,
+    left: rect.left - gap - width > 0,
+    below: rect.bottom + gap + height < innerHeight,
+  };
+  let left, top;
+  if (fits.right) { left = rect.right + gap; top = rect.top; }
+  else if (fits.left) { left = rect.left - gap - width; top = rect.top; }
+  else if (fits.below) { left = rect.left; top = rect.bottom + gap; }
+  else { left = rect.left; top = rect.top - gap - height; }
+  card.style.left = `${Math.max(12, Math.min(innerWidth - width - 12, left))}px`;
+  card.style.top = `${Math.max(12, Math.min(innerHeight - height - 12, top))}px`;
+}
+
+function showTourStep(index) {
+  tourStep = index;
+  const step = TOUR[index];
+  $('#tour-count').textContent = `Шаг ${index + 1} из ${TOUR.length}`;
+  $('#tour-dots').innerHTML = TOUR.map((_, n) => `<i class="${n === index ? 'on' : ''}"></i>`).join('');
+  $('#tour-title').textContent = step.title;
+  $('#tour-text').textContent = step.text;
+  $('#tour-back').disabled = index === 0;
+  $('#tour-next').textContent = index === TOUR.length - 1 ? 'Начать работу' : 'Далее';
+  $(step.target).scrollIntoView({ block: 'center', behavior: 'smooth' });
+  placeTour();
+  setTimeout(placeTour, 380);
+  $('#tour-next').focus({ preventScroll: true });
+}
+
+function startTour() {
+  $$('dialog[open]').forEach(dialog => dialog.close());
+  select(null);
+  $('#tour').hidden = false;
+  showTourStep(0);
+}
+
+function endTour() {
+  $('#tour').hidden = true;
+  tourStep = -1;
+  try { localStorage.setItem(tourKey, '1'); } catch { /* покажем снова в следующий раз */ }
+}
+
+$('#tour-open').onclick = startTour;
+$('#tour-next').onclick = () => (tourStep === TOUR.length - 1 ? endTour() : showTourStep(tourStep + 1));
+$('#tour-back').onclick = () => tourStep > 0 && showTourStep(tourStep - 1);
+$('#tour-skip').onclick = endTour;
+window.addEventListener('resize', placeTour);
+window.addEventListener('scroll', placeTour, { passive: true });
+document.addEventListener('keydown', event => {
+  if (tourStep < 0) return;
+  if (event.key === 'Escape') { event.preventDefault(); endTour(); }
+  if (event.key === 'ArrowRight') { event.preventDefault(); $('#tour-next').click(); }
+  if (event.key === 'ArrowLeft') { event.preventDefault(); $('#tour-back').click(); }
+}, true);
+
 const params = new URLSearchParams(location.search);
 const demo = EXAMPLES.find(example => example.id === params.get('case'));
 if (demo) {
@@ -1848,6 +2038,11 @@ if (demo) {
 changeMode(params.get('mode') === 'names' ? 'names' : 'meaning', params.get('mode') === 'names' ?
   (demo?.scene.layers.map(layer => ASSETS.get(layer.assetId).label).join(', ') || '') : scene.title);
 render();
+
+// Первый визит: короткое обучение, пока ничего не трогали.
+let tourSeen = false;
+try { tourSeen = Boolean(localStorage.getItem(tourKey)); } catch { /* хранилище выключено */ }
+if (!tourSeen) setTimeout(startTour, 600);
 
 </script>
 </body>

@@ -5,7 +5,7 @@ import {
 } from './engine.mjs';
 import { suggest } from './semantics.mjs';
 import { PROVIDERS, suggestWithAI } from './ai.mjs';
-import { ASSETS, objectTransform, sceneSVG, thumbnail } from './vector.mjs';
+import { ASSETS, objectTransform, rotateHandle, sceneSVG, thumbnail } from './vector.mjs';
 import { EXAMPLES } from './examples.mjs';
 
 const $ = selector => document.querySelector(selector);
@@ -31,6 +31,7 @@ const icons = {
   keyboard: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.8M12 17h.01"/>',
 };
 
 const storageKey = 'montage-illustration-scene-v2';
@@ -158,6 +159,12 @@ function renderCatalog() {
   renderedSize = scene.size;
 }
 
+// Сколько единиц кадра приходится на пиксель экрана: ручки держат постоянный экранный размер.
+function uiScale() {
+  const width = $('#artboard-shell').getBoundingClientRect().width * zoom;
+  return width ? FORMATS[scene.format].width / width : 1;
+}
+
 function renderCanvas() {
   const format = FORMATS[scene.format];
   const shell = $('#artboard-shell');
@@ -165,7 +172,7 @@ function renderCanvas() {
   const available = Math.min(500, Math.max(260, window.innerHeight * .50));
   shell.style.maxWidth = `${Math.round(available * ratio)}px`;
   artboard.style.setProperty('--zoom', zoom);
-  artboard.innerHTML = sceneSVG(scene, { editor: true, selected, zoom });
+  artboard.innerHTML = sceneSVG(scene, { editor: true, selected, zoom, uiScale: uiScale() });
   $('#frame-label').textContent = `${format.width} × ${format.height} · ${scene.size}`;
   $('#zoom-reset').textContent = `${Math.round(zoom * 100)}%`;
   $('#zoom-out').disabled = zoom <= .5;
@@ -403,33 +410,59 @@ function download() {
 
 function dragStart(event) {
   if (event.button !== 0) return;
+  const box = $('.artboard').getBoundingClientRect();
+  // Ручка поворота: вращаем выбранный объект вокруг его центра.
+  if (event.target.closest('[data-rotate]') && selected) {
+    const layer = scene.layers.find(item => item.key === selected);
+    const center = [box.left + layer.x * box.width, box.top + layer.y * box.height];
+    const start = Math.atan2(event.clientY - center[1], event.clientX - center[0]);
+    drag = { mode: 'rotate', before: scene, key: selected, layer, center, start, pointer: event.pointerId };
+    artboard.setPointerCapture(event.pointerId);
+    stage.classList.add('is-rotating');
+    return;
+  }
   const key = event.target.closest('[data-layer]')?.dataset.layer;
   if (!key) { select(null); return; }
   const layer = scene.layers.find(item => item.key === key);
-  const box = $('.artboard').getBoundingClientRect();
-  drag = { before: scene, key, x: event.clientX, y: event.clientY, layer, box, pointer: event.pointerId };
+  drag = { mode: 'move', before: scene, key, x: event.clientX, y: event.clientY, layer, box, pointer: event.pointerId };
   select(key);
   artboard.setPointerCapture(event.pointerId);
   stage.classList.add('is-dragging');
 }
 
+function applyLive(changed) {
+  scene = { ...scene, layers: scene.layers.map(item => item.key === drag.key ? changed : item) };
+  const group = [...artboard.querySelectorAll('[data-layer]')].find(node => node.dataset.layer === drag.key);
+  group.setAttribute('transform', objectTransform(scene, changed));
+  const handle = rotateHandle(scene, changed, uiScale());
+  artboard.querySelector('.rotate-handle')?.setAttribute('transform', `translate(${handle.x} ${handle.y})`);
+}
+
 function dragMove(event) {
   if (!drag || event.pointerId !== drag.pointer) return;
+  if (drag.mode === 'rotate') {
+    const now = Math.atan2(event.clientY - drag.center[1], event.clientX - drag.center[0]);
+    let angle = drag.layer.angle + (now - drag.start) * 180 / Math.PI;
+    angle = ((angle + 180) % 360 + 360) % 360 - 180;
+    // С Shift угол шагает по 15°, чтобы легко выставить ровно.
+    angle = event.shiftKey ? Math.round(angle / 15) * 15 : Math.round(angle);
+    if (angle === -180) angle = 180;
+    applyLive({ ...drag.layer, angle });
+    $('#angle').value = angle;
+    return;
+  }
   const clamp = value => Math.min(.98, Math.max(.02, value));
   const x = clamp(drag.layer.x + (event.clientX - drag.x) / drag.box.width);
   const y = clamp(drag.layer.y + (event.clientY - drag.y) / drag.box.height);
   if (scene === drag.before && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 3) return;
-  const changed = { ...drag.layer, x, y };
-  scene = { ...scene, layers: scene.layers.map(item => item.key === drag.key ? changed : item) };
-  const group = [...artboard.querySelectorAll('[data-layer]')].find(node => node.dataset.layer === drag.key);
-  group.setAttribute('transform', objectTransform(scene, changed));
+  applyLive({ ...drag.layer, x, y });
 }
 
 function dragEnd(event) {
   if (!drag || event.pointerId !== drag.pointer) return;
   const { before, key } = drag;
   drag = null;
-  stage.classList.remove('is-dragging');
+  stage.classList.remove('is-dragging', 'is-rotating');
   if (event.type === 'pointercancel') { scene = before; render(); return; }
   if (scene !== before) commit(scene, key, before);
 }
@@ -634,6 +667,89 @@ window.addEventListener('keydown', event => {
   }
 });
 
+// ---------- Обучение для новых пользователей ----------
+// Подсветка нужного места и короткая подсказка. Запускается при первом визите и по кнопке «?».
+const TOUR = [
+  { target: '.setup-form', title: 'Начни с заголовка', text: 'Напиши заголовок статьи или метафору, например «Удалёнка без выгорания». На вкладке «По объектам» можно просто перечислить предметы: «папка, кошелёк, монета».' },
+  { target: '#compose-button', title: 'Собери композицию', text: 'Сервис выберет 2–3 предмета из библиотеки и разложит их крупным планом. Под кнопкой появится объяснение, почему выбраны именно они.' },
+  { target: '#ai-row', title: 'ИИ — по желанию', text: 'Без ключа работает встроенный словарь ассоциаций. Подключи OpenRouter, OpenAI или Gemini, и модель сама найдёт метафору даже для сложного заголовка.' },
+  { target: '#stage', title: 'Правь прямо на холсте', text: 'Тяни объект мышью, чтобы переместить. Выбранный объект можно повернуть ручкой в правом нижнем углу рамки; с Shift угол меняется шагами по 15°.' },
+  { target: '.layer-panel', title: 'Слои', text: 'Здесь порядок слоёв, роль «главный/фоновый», точный угол, копия и удаление. Ctrl+Z отменяет любое действие.' },
+  { target: '.settings-panel', title: 'Формат и масштаб', text: 'Три формата кадра, детализация S/L и три раскладки. «Масштаб сцены» меняет все объекты вместе: пропорции между ними сохраняются, как требует библиотека.' },
+  { target: '.palette-panel', title: 'Цвета', text: 'Готовые палитры или своя: 8 HEX-цветов текстом или файлом JSON. Все объекты перекрашиваются автоматически.' },
+  { target: '#export', title: 'Скачай SVG', text: 'Получится векторный файл: каждый объект — отдельная группа с исходными контурами. Его можно открыть и доработать в Figma или Illustrator.' },
+];
+const tourKey = 'montage-tour-done-v1';
+let tourStep = -1;
+
+function placeTour() {
+  if (tourStep < 0) return;
+  const step = TOUR[tourStep];
+  const target = $(step.target);
+  const rect = target.getBoundingClientRect();
+  const pad = 6;
+  const spot = $('.tour-spot');
+  Object.assign(spot.style, {
+    top: `${rect.top - pad}px`, left: `${rect.left - pad}px`, width: `${rect.width + pad * 2}px`, height: `${rect.height + pad * 2}px`,
+  });
+  const card = $('.tour-card');
+  const { width, height } = card.getBoundingClientRect();
+  const gap = 16;
+  const fits = {
+    right: rect.right + gap + width < innerWidth,
+    left: rect.left - gap - width > 0,
+    below: rect.bottom + gap + height < innerHeight,
+  };
+  let left, top;
+  if (fits.right) { left = rect.right + gap; top = rect.top; }
+  else if (fits.left) { left = rect.left - gap - width; top = rect.top; }
+  else if (fits.below) { left = rect.left; top = rect.bottom + gap; }
+  else { left = rect.left; top = rect.top - gap - height; }
+  card.style.left = `${Math.max(12, Math.min(innerWidth - width - 12, left))}px`;
+  card.style.top = `${Math.max(12, Math.min(innerHeight - height - 12, top))}px`;
+}
+
+function showTourStep(index) {
+  tourStep = index;
+  const step = TOUR[index];
+  $('#tour-count').textContent = `Шаг ${index + 1} из ${TOUR.length}`;
+  $('#tour-dots').innerHTML = TOUR.map((_, n) => `<i class="${n === index ? 'on' : ''}"></i>`).join('');
+  $('#tour-title').textContent = step.title;
+  $('#tour-text').textContent = step.text;
+  $('#tour-back').disabled = index === 0;
+  $('#tour-next').textContent = index === TOUR.length - 1 ? 'Начать работу' : 'Далее';
+  $(step.target).scrollIntoView({ block: 'center', behavior: 'smooth' });
+  placeTour();
+  setTimeout(placeTour, 380);
+  $('#tour-next').focus({ preventScroll: true });
+}
+
+function startTour() {
+  $$('dialog[open]').forEach(dialog => dialog.close());
+  select(null);
+  $('#tour').hidden = false;
+  showTourStep(0);
+}
+
+function endTour() {
+  $('#tour').hidden = true;
+  tourStep = -1;
+  try { localStorage.setItem(tourKey, '1'); } catch { /* покажем снова в следующий раз */ }
+}
+
+$('#tour-open').onclick = startTour;
+$('#tour-next').onclick = () => (tourStep === TOUR.length - 1 ? endTour() : showTourStep(tourStep + 1));
+$('#tour-back').onclick = () => tourStep > 0 && showTourStep(tourStep - 1);
+$('#tour-skip').onclick = endTour;
+window.addEventListener('resize', placeTour);
+window.addEventListener('scroll', placeTour, { passive: true });
+document.addEventListener('keydown', event => {
+  if (tourStep < 0) return;
+  if (event.key === 'Escape') { event.preventDefault(); endTour(); }
+  if (event.key === 'ArrowRight') { event.preventDefault(); $('#tour-next').click(); }
+  if (event.key === 'ArrowLeft') { event.preventDefault(); $('#tour-back').click(); }
+}, true);
+
 const params = new URLSearchParams(location.search);
 const demo = EXAMPLES.find(example => example.id === params.get('case'));
 if (demo) {
@@ -644,3 +760,8 @@ if (demo) {
 changeMode(params.get('mode') === 'names' ? 'names' : 'meaning', params.get('mode') === 'names' ?
   (demo?.scene.layers.map(layer => ASSETS.get(layer.assetId).label).join(', ') || '') : scene.title);
 render();
+
+// Первый визит: короткое обучение, пока ничего не трогали.
+let tourSeen = false;
+try { tourSeen = Boolean(localStorage.getItem(tourKey)); } catch { /* хранилище выключено */ }
+if (!tourSeen) setTimeout(startTour, 600);

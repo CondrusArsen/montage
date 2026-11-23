@@ -14,6 +14,7 @@
   <header class="topbar">
     <a class="brand" href="./" aria-label="Монтаж, главная"><img src="mark.svg" alt="">Монтаж<span class="brand-divider"></span><span class="brand-label">Конструктор иллюстраций</span></a>
     <div class="top-actions">
+      <button id="tour-open" class="icon-button" type="button" title="Пройти обучение заново" aria-label="Обучение"><span data-icon="help"></span></button>
       <button id="shortcuts-open" class="icon-button" type="button" title="Горячие клавиши" aria-label="Горячие клавиши"><span data-icon="keyboard"></span></button>
       <button id="theme-toggle" class="icon-button theme-toggle" type="button" title="Светлая или тёмная тема" aria-label="Переключить тему"><span class="sun" data-icon="sun"></span><span class="moon" data-icon="moon"></span></button>
       <button id="examples-open" class="button button-quiet" type="button"><span data-icon="grid"></span><span class="button-label">Примеры</span></button>
@@ -102,6 +103,21 @@
     </aside>
   </main>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="tour" class="tour" hidden>
+    <div class="tour-spot" aria-hidden="true"></div>
+    <section class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+      <div class="tour-progress"><span id="tour-count"></span><div id="tour-dots" class="tour-dots" aria-hidden="true"></div></div>
+      <h3 id="tour-title"></h3>
+      <p id="tour-text"></p>
+      <div class="tour-actions">
+        <button type="button" id="tour-skip" class="link-button">Пропустить</button>
+        <span class="tour-nav">
+          <button type="button" id="tour-back" class="button button-quiet">Назад</button>
+          <button type="button" id="tour-next" class="button button-accent">Далее</button>
+        </span>
+      </div>
+    </section>
+  </div>
   <dialog id="palette-dialog" aria-labelledby="palette-heading">
     <form id="palette-form">
       <header class="dialog-header"><h2 id="palette-heading">Своя палитра</h2><button type="button" class="icon-button" data-close data-icon="close" aria-label="Закрыть"></button></header>

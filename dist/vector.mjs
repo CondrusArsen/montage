@@ -13,15 +13,43 @@ export function thumbnail(asset, size) {
   return `<svg viewBox="${box.join(' ')}" aria-hidden="true" focusable="false">${recolor(body, PALETTES.iris.colors)}</svg>`;
 }
 
+function sceneScale(scene) {
+  const base = Number.isFinite(scene.scale) ? scene.scale : autoScale(scene.layers, scene.format, scene.layout);
+  return base * (scene.fit || 1) * (scene.size === 'L' ? 1 : S_FACTOR);
+}
+
+// Ручка поворота: правый нижний угол рамки выбранного объекта с учётом его поворота.
+// uiScale — сколько единиц кадра приходится на один пиксель экрана.
+export function rotateHandle(scene, layer, uiScale = 1) {
+  const { width, height } = FORMATS[scene.format];
+  const { box: [, , w, h] } = ASSETS.get(layer.assetId).variants[scene.size][layer.role];
+  const scale = sceneScale(scene);
+  const r = 11 * uiScale;
+  const radians = layer.angle * Math.PI / 180;
+  const dx = w * scale / 2 + r * .9;
+  const dy = h * scale / 2 + r * .9;
+  const x = layer.x * width + dx * Math.cos(radians) - dy * Math.sin(radians);
+  const y = layer.y * height + dx * Math.sin(radians) + dy * Math.cos(radians);
+  const pad = r * 1.2;
+  return { x: fixed(Math.min(width - pad, Math.max(pad, x))), y: fixed(Math.min(height - pad, Math.max(pad, y))), r: fixed(r) };
+}
+
+export function handleMarkup(handle) {
+  const { x, y, r } = handle;
+  const k = r / 11;
+  // Круглая ручка со стрелкой поворота внутри.
+  return `<g class="rotate-handle" data-rotate transform="translate(${x} ${y})"><circle r="${r}"/>` +
+    `<path transform="scale(${fixed(k)})" d="M4.6 -1.8A5 5 0 1 0 4.2 3.4M4.6 -1.8V-5.6M4.6 -1.8H0.8"/></g>`;
+}
+
 export function objectTransform(scene, layer) {
   const { width, height } = FORMATS[scene.format];
   const { box: [x, y, w, h] } = ASSETS.get(layer.assetId).variants[scene.size][layer.role];
-  const base = Number.isFinite(scene.scale) ? scene.scale : autoScale(scene.layers, scene.format, scene.layout);
-  const scale = base * (scene.fit || 1) * (scene.size === 'L' ? 1 : S_FACTOR);
+  const scale = sceneScale(scene);
   return `translate(${fixed(layer.x * width)} ${fixed(layer.y * height)}) rotate(${fixed(layer.angle)}) scale(${fixed(scale)}) translate(${fixed(-x - w / 2)} ${fixed(-y - h / 2)})`;
 }
 
-export function sceneSVG(scene, { editor = false, selected = null, zoom = 1 } = {}) {
+export function sceneSVG(scene, { editor = false, selected = null, zoom = 1, uiScale = 1 } = {}) {
   const { width, height } = FORMATS[scene.format];
   const colors = scene.palette === 'custom' ? scene.custom : PALETTES[scene.palette].colors;
   const source = BACKDROPS[scene.size][scene.palette === 'custom' ? 'iris' : scene.palette];
@@ -48,7 +76,9 @@ export function sceneSVG(scene, { editor = false, selected = null, zoom = 1 } = 
   const z = TITLE_ZONE[scene.format];
   const guide = editor && scene.layout === 'title' ?
     `<rect class="title-guide" x="${z[0] * width + 18}" y="${z[1] * height + 18}" width="${(z[2] - z[0]) * width - 36}" height="${(z[3] - z[1]) * height - 36}" rx="10"/>` : '';
+  const current = editor && scene.layers.find(layer => layer.key === selected);
+  const handle = current ? handleMarkup(rotateHandle(scene, current, uiScale)) : '';
   const id = editor ? 'editor-frame' : 'export-frame';
   const controls = editor ? ` class="artboard" role="img" aria-label="Холст композиции" data-zoom="${zoom}"` : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"${controls}><title>${escape(scene.title || 'Композиция')}</title><defs><clipPath id="${id}"><rect width="${width}" height="${height}"/></clipPath></defs><g clip-path="url(#${id})">${backdrop}${groups}${guide}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"${controls}><title>${escape(scene.title || 'Композиция')}</title><defs><clipPath id="${id}"><rect width="${width}" height="${height}"/></clipPath></defs><g clip-path="url(#${id})">${backdrop}${groups}${guide}</g>${handle}</svg>`;
 }

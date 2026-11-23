@@ -232,6 +232,12 @@ textarea::placeholder, .text-input::placeholder { color: var(--faint); }
 .canvas-object .hover-ring { fill: none; stroke: #6553a6; stroke-width: 1.2px; vector-effect: non-scaling-stroke; stroke-dasharray: 2 3; opacity: 0; pointer-events: none; transition: opacity .12s; }
 .canvas-object:hover .hover-ring { opacity: .75; }
 .stage.is-dragging, .stage.is-dragging .canvas-object { cursor: grabbing; }
+.artboard { overflow: visible; }
+.rotate-handle { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M18 8a7.5 7.5 0 1 0 .9 7' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M18 8a7.5 7.5 0 1 0 .9 7' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3Cpath d='M18.5 3v5.3h-5.3' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M18.5 3v5.3h-5.3' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 12 12, alias; }
+.rotate-handle circle { fill: #fff; stroke: #6553a6; stroke-width: 1.6px; vector-effect: non-scaling-stroke; filter: drop-shadow(0 1px 2px #0005); transition: fill .12s; }
+.rotate-handle path { fill: none; stroke: #6553a6; stroke-width: 1.6px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+.rotate-handle:hover circle, .stage.is-rotating .rotate-handle circle { fill: #ece7fb; }
+.stage.is-rotating, .stage.is-rotating * { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M18 8a7.5 7.5 0 1 0 .9 7' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'/%3E%3Cpath d='M18.5 3v5.3h-5.3' fill='none' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E") 12 12, alias; }
 .stage.is-dragging .hover-ring { opacity: 0; }
 .selection { fill: #6553a60d; stroke: #6553a6; stroke-width: 1.6px; vector-effect: non-scaling-stroke; stroke-dasharray: 5 3; pointer-events: none; }
 .title-guide { fill: #ffffff33; stroke: #6553a6; stroke-width: 1.3px; stroke-dasharray: 6 5; vector-effect: non-scaling-stroke; pointer-events: none; }
@@ -331,6 +337,28 @@ dialog::backdrop { background: #07080699; backdrop-filter: blur(3px); }
 .shortcuts dt { display: flex; gap: 4px; justify-content: flex-end; }
 .shortcuts dd { margin: 0; color: var(--muted); }
 
+/* ---------- Обучение ---------- */
+.tour { position: fixed; inset: 0; z-index: 10; }
+.tour-spot {
+  position: fixed; border-radius: 14px; pointer-events: none;
+  box-shadow: 0 0 0 3px var(--violet), 0 0 0 9999px #050604b8;
+  transition: top .35s var(--ease), left .35s var(--ease), width .35s var(--ease), height .35s var(--ease);
+}
+.tour-card {
+  position: fixed; width: min(340px, calc(100vw - 24px)); padding: 18px; border-radius: 16px;
+  background: var(--surface); border: 1px solid var(--stroke-strong); box-shadow: var(--shadow-pop);
+  transition: top .35s var(--ease), left .35s var(--ease); animation: rise .3s var(--ease);
+}
+.tour-card h3 { margin: 10px 0 6px; font-size: 1.08rem; letter-spacing: -.03em; }
+.tour-card p { color: var(--muted); font-size: .9rem; line-height: 1.5; }
+.tour-progress { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--violet-ink); font-size: .74rem; font-weight: 750; text-transform: uppercase; letter-spacing: .05em; }
+.tour-dots { display: flex; gap: 5px; }
+.tour-dots i { width: 6px; height: 6px; border-radius: 3px; background: var(--stroke-strong); transition: width .25s var(--ease), background-color .25s var(--ease); }
+.tour-dots i.on { width: 18px; background: var(--violet); }
+.tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
+.tour-nav { display: flex; gap: 8px; }
+.tour-nav .button { min-height: 36px; padding: 6px 13px; }
+
 /* ---------- Адаптивность ---------- */
 @media (min-width: 1500px) {
   .workspace { gap: 18px; padding-inline: 28px; }
@@ -414,11 +442,12 @@ dialog::backdrop { background: #07080699; backdrop-filter: blur(3px); }
     <section class="demo-guide">
       <h2>Что проверить в редакторе</h2>
       <ol>
+        <li>При первом входе редактор сам проведёт по шагам; повторить обучение можно кнопкой «?».</li>
         <li>Введи свой заголовок, например «Удалёнка без выгорания», и нажми «Собрать композицию». Под кнопкой появится объяснение: какие объекты выбраны и почему.</li>
         <li>Нажми «Подключить ИИ» и вставь ключ OpenRouter, OpenAI или Gemini. Модель найдёт метафору и выберет объекты только из библиотеки. Без ключа работает встроенный словарь.</li>
         <li>Вкладка «По объектам»: перечисли предметы через запятую, например «папка, кошелёк, монета».</li>
         <li>Смени формат, раскладку и S/L, перекрась сцену или загрузи <a href="data:application/json,%7B%0A%20%20%22colors%22%3A%20%5B%22%23ffe3bc%22%2C%20%22%23f1c193%22%2C%20%22%23d5874b%22%2C%20%22%23202020%22%2C%20%22%23fff5a1%22%2C%20%22%23f08d98%22%2C%20%22%23facde1%22%2C%20%22%23ffffff%22%5D%0A%7D%0A" download="sample-palette.json">свою палитру</a>. Масштаб сцены меняет все объекты вместе, пропорции сохраняются.</li>
-        <li>Выбери слой: перетащи, поверни, дублируй, удали, поменяй порядок или роль «главный/фоновый». Скачай SVG и открой в Figma или Illustrator: каждый объект — отдельная группа с исходными контурами.</li>
+        <li>Выбери слой: перетащи, поверни ручкой в углу рамки, дублируй, удали, поменяй порядок или роль «главный/фоновый». Скачай SVG и открой в Figma или Illustrator: каждый объект — отдельная группа с исходными контурами.</li>
       </ol>
     </section>
   </main>
@@ -916,15 +945,43 @@ function thumbnail(asset, size) {
   return `<svg viewBox="${box.join(' ')}" aria-hidden="true" focusable="false">${recolor(body, PALETTES.iris.colors)}</svg>`;
 }
 
+function sceneScale(scene) {
+  const base = Number.isFinite(scene.scale) ? scene.scale : autoScale(scene.layers, scene.format, scene.layout);
+  return base * (scene.fit || 1) * (scene.size === 'L' ? 1 : S_FACTOR);
+}
+
+// Ручка поворота: правый нижний угол рамки выбранного объекта с учётом его поворота.
+// uiScale — сколько единиц кадра приходится на один пиксель экрана.
+function rotateHandle(scene, layer, uiScale = 1) {
+  const { width, height } = FORMATS[scene.format];
+  const { box: [, , w, h] } = ASSETS.get(layer.assetId).variants[scene.size][layer.role];
+  const scale = sceneScale(scene);
+  const r = 11 * uiScale;
+  const radians = layer.angle * Math.PI / 180;
+  const dx = w * scale / 2 + r * .9;
+  const dy = h * scale / 2 + r * .9;
+  const x = layer.x * width + dx * Math.cos(radians) - dy * Math.sin(radians);
+  const y = layer.y * height + dx * Math.sin(radians) + dy * Math.cos(radians);
+  const pad = r * 1.2;
+  return { x: fixed(Math.min(width - pad, Math.max(pad, x))), y: fixed(Math.min(height - pad, Math.max(pad, y))), r: fixed(r) };
+}
+
+function handleMarkup(handle) {
+  const { x, y, r } = handle;
+  const k = r / 11;
+  // Круглая ручка со стрелкой поворота внутри.
+  return `<g class="rotate-handle" data-rotate transform="translate(${x} ${y})"><circle r="${r}"/>` +
+    `<path transform="scale(${fixed(k)})" d="M4.6 -1.8A5 5 0 1 0 4.2 3.4M4.6 -1.8V-5.6M4.6 -1.8H0.8"/></g>`;
+}
+
 function objectTransform(scene, layer) {
   const { width, height } = FORMATS[scene.format];
   const { box: [x, y, w, h] } = ASSETS.get(layer.assetId).variants[scene.size][layer.role];
-  const base = Number.isFinite(scene.scale) ? scene.scale : autoScale(scene.layers, scene.format, scene.layout);
-  const scale = base * (scene.fit || 1) * (scene.size === 'L' ? 1 : S_FACTOR);
+  const scale = sceneScale(scene);
   return `translate(${fixed(layer.x * width)} ${fixed(layer.y * height)}) rotate(${fixed(layer.angle)}) scale(${fixed(scale)}) translate(${fixed(-x - w / 2)} ${fixed(-y - h / 2)})`;
 }
 
-function sceneSVG(scene, { editor = false, selected = null, zoom = 1 } = {}) {
+function sceneSVG(scene, { editor = false, selected = null, zoom = 1, uiScale = 1 } = {}) {
   const { width, height } = FORMATS[scene.format];
   const colors = scene.palette === 'custom' ? scene.custom : PALETTES[scene.palette].colors;
   const source = BACKDROPS[scene.size][scene.palette === 'custom' ? 'iris' : scene.palette];
@@ -951,9 +1008,11 @@ function sceneSVG(scene, { editor = false, selected = null, zoom = 1 } = {}) {
   const z = TITLE_ZONE[scene.format];
   const guide = editor && scene.layout === 'title' ?
     `<rect class="title-guide" x="${z[0] * width + 18}" y="${z[1] * height + 18}" width="${(z[2] - z[0]) * width - 36}" height="${(z[3] - z[1]) * height - 36}" rx="10"/>` : '';
+  const current = editor && scene.layers.find(layer => layer.key === selected);
+  const handle = current ? handleMarkup(rotateHandle(scene, current, uiScale)) : '';
   const id = editor ? 'editor-frame' : 'export-frame';
   const controls = editor ? ` class="artboard" role="img" aria-label="Холст композиции" data-zoom="${zoom}"` : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"${controls}><title>${escape(scene.title || 'Композиция')}</title><defs><clipPath id="${id}"><rect width="${width}" height="${height}"/></clipPath></defs><g clip-path="url(#${id})">${backdrop}${groups}${guide}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"${controls}><title>${escape(scene.title || 'Композиция')}</title><defs><clipPath id="${id}"><rect width="${width}" height="${height}"/></clipPath></defs><g clip-path="url(#${id})">${backdrop}${groups}${guide}</g>${handle}</svg>`;
 }
 
 // Смысловой подбор через языковую модель. Модель только выбирает ID из библиотеки:
