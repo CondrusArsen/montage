@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Конструктор иллюстраций из оригинальной библиотеки SVG. Подбор объектов по заголовку, редактирование сцены и экспорт вектора.">
+  <meta name="theme-color" content="#f7f7f2">
+  <title>Монтаж — конструктор иллюстраций</title>
+  <link rel="icon" href="mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="studio.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Монтаж, главная"><img src="mark.svg" alt="">Монтаж<span class="brand-divider"></span><span class="brand-label">Конструктор иллюстраций</span></a>
+    <div class="top-actions">
+      <button id="examples-open" class="button button-quiet" type="button"><span data-icon="grid"></span>Примеры</button>
+      <button id="export" class="button button-dark" type="button"><span data-icon="download"></span>Скачать SVG</button>
+    </div>
+  </header>
+  <main class="workspace">
+    <aside class="setup" aria-label="Сборка и библиотека">
+      <section class="setup-form">
+        <header class="section-heading"><h1>Собрать сцену</h1><span data-icon="spark" class="section-glyph"></span></header>
+        <div class="segmented" role="group" aria-label="Способ подбора">
+          <button type="button" id="mode-meaning" aria-pressed="true">По заголовку</button>
+          <button type="button" id="mode-names" aria-pressed="false">По объектам</button>
+        </div>
+        <form id="compose">
+          <label id="query-label" for="query">Заголовок или метафора</label>
+          <textarea id="query" rows="3" maxlength="250" spellcheck="false" required></textarea>
+          <p id="query-note" class="field-note"></p>
+          <button class="button button-accent compose-button" type="submit"><span data-icon="spark"></span>Собрать композицию</button>
+        </form>
+      </section>
+      <section class="library-section">
+        <header class="section-heading"><h2>Библиотека</h2><span id="catalog-count" class="muted-count"></span></header>
+        <div class="search"><span data-icon="search"></span><input id="search" type="search" placeholder="Найти компонент" aria-label="Найти компонент"></div>
+        <div id="catalog" class="catalog"></div>
+      </section>
+    </aside>
+    <section class="workbench" aria-label="Редактор сцены">
+      <header class="workbench-header">
+        <div><div class="workspace-label"><span data-icon="layers"></span> Композиция</div><h2 id="scene-title"></h2></div>
+        <div class="history" aria-label="История изменений">
+          <button id="undo" class="icon-button" type="button" title="Отменить (Ctrl+Z)" aria-label="Отменить" data-icon="undo"></button>
+          <button id="redo" class="icon-button" type="button" title="Повторить (Ctrl+Shift+Z)" aria-label="Повторить" data-icon="redo"></button>
+        </div>
+      </header>
+      <div class="workbench-canvas">
+        <div class="stage" id="stage">
+          <div class="artboard-shell" id="artboard-shell">
+            <div id="artboard"></div>
+          </div>
+          <p id="empty" class="stage-empty" hidden>Добавь объект из библиотеки или собери композицию.</p>
+        </div>
+        <footer class="canvas-footer">
+          <span id="frame-label"></span>
+          <div class="zoom-controls" aria-label="Масштаб холста">
+            <button type="button" class="icon-button" id="zoom-out" data-icon="minus" aria-label="Уменьшить масштаб"></button>
+            <button type="button" id="zoom-reset" title="Вписать холст">100%</button>
+            <button type="button" class="icon-button" id="zoom-in" data-icon="plus" aria-label="Увеличить масштаб"></button>
+          </div>
+        </footer>
+      </div>
+      <footer class="workbench-footer"><span data-icon="pointer"></span>Перетаскивай объекты на холсте или выбирай их в списке слоёв.</footer>
+    </section>
+    <aside class="inspector" aria-label="Параметры композиции">
+      <section class="panel settings-panel">
+        <header class="section-heading"><h2>Холст</h2><span data-icon="sliders" class="section-glyph"></span></header>
+        <div class="setting"><label>Формат</label><div id="formats" class="format-options" role="group" aria-label="Формат холста"></div></div>
+        <div class="setting size-setting"><label>Детализация</label><div class="segmented size-options" role="group" aria-label="Детализация"><button type="button" data-size="S" title="Упрощённые исходники">S</button><button type="button" data-size="L" title="Подробные исходники">L</button></div></div>
+        <div class="setting"><label for="layout">Раскладка</label><select id="layout"></select></div>
+      </section>
+      <section class="panel palette-panel">
+        <header class="section-heading"><h2>Палитра</h2><button type="button" id="palette-open" class="icon-button" data-icon="upload" title="Загрузить палитру" aria-label="Загрузить палитру"></button></header>
+        <div id="palettes" class="palette-options" role="group" aria-label="Цветовая схема"></div>
+      </section>
+      <section class="panel layer-panel">
+        <header class="section-heading"><h2>Слои</h2><span id="layer-count" class="muted-count"></span></header>
+        <div id="layers" class="layers" aria-label="Слои, верхний впереди"></div>
+        <div id="layer-tools" class="layer-tools" hidden>
+          <label for="layer-role">Роль</label><select id="layer-role"><option value="main">Главный объект</option><option value="background">Фоновый объект</option></select>
+          <label for="angle">Поворот</label><div class="angle-field"><input id="angle" type="number" min="-180" max="180" step="1"><span>°</span></div>
+          <div class="layer-actions" role="group" aria-label="Действия со слоем">
+            <button type="button" id="layer-up" class="icon-button" data-icon="up" aria-label="Слой выше" title="Слой выше"></button>
+            <button type="button" id="layer-down" class="icon-button" data-icon="down" aria-label="Слой ниже" title="Слой ниже"></button>
+            <button type="button" id="duplicate" class="icon-button" data-icon="copy" aria-label="Дублировать слой" title="Дублировать слой (Ctrl+D)"></button>
+            <button type="button" id="delete" class="icon-button" data-icon="trash" aria-label="Удалить слой" title="Удалить слой (Delete)"></button>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="palette-dialog" aria-labelledby="palette-heading">
+    <form id="palette-form">
+      <header class="dialog-header"><h2 id="palette-heading">Своя палитра</h2><button type="button" class="icon-button" data-close data-icon="close" aria-label="Закрыть"></button></header>
+      <p>Введи 8 HEX-цветов или выбери файл .json или .txt. Первые четыре цвета — для фона и фоновых объектов, остальные — для главных объектов.</p>
+      <label for="palette-value">Цвета по порядку</label>
+      <textarea id="palette-value" rows="4" spellcheck="false"></textarea>
+      <label class="file-button"><span data-icon="upload"></span>Выбрать файл<input id="palette-file" type="file" accept=".json,.txt"></label>
+      <p id="palette-error" class="form-error" role="alert"></p>
+      <button type="submit" class="button button-dark">Применить палитру</button>
+    </form>
+  </dialog>
+  <dialog id="examples-dialog" aria-labelledby="examples-heading">
+    <div class="dialog-inner">
+      <header class="dialog-header"><h2 id="examples-heading">Примеры композиций</h2><button type="button" class="icon-button" data-close data-icon="close" aria-label="Закрыть"></button></header>
+      <div id="example-grid" class="example-grid"></div>
+    </div>
+  </dialog>
+  <script type="module" src="studio.mjs"></script>
+</body>
+</html>
