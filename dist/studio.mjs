@@ -28,6 +28,9 @@ const icons = {
   up: '<path d="M12 19V5m-5 5 5-5 5 5"/>',
   down: '<path d="M12 5v14m-5-5 5 5 5-5"/>',
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
+  keyboard: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/>',
 };
 
 const storageKey = 'montage-illustration-scene-v2';
@@ -150,7 +153,7 @@ function renderCatalog() {
     [asset.label, ...asset.aliases, ...asset.tags].some(word => normalize(word).includes(term)));
   $('#catalog-count').textContent = results.length;
   $('#catalog').innerHTML = results.length ? results.map(asset =>
-    `<button type="button" class="asset" data-id="${asset.id}" aria-label="Добавить: ${asset.label}">${thumbnail(asset, scene.size)}<span>${asset.label}</span></button>`
+    `<button type="button" class="asset" data-id="${asset.id}" aria-label="Добавить: ${asset.label}"><span class="thumb">${thumbnail(asset, scene.size)}</span><span>${asset.label}</span></button>`
   ).join('') : '<p class="empty-note">Компоненты не найдены.</p>';
   renderedSize = scene.size;
 }
@@ -180,7 +183,7 @@ function renderLayerInspector() {
     button.className = 'layer';
     button.dataset.select = item.key;
     button.setAttribute('aria-pressed', String(item.key === selected));
-    button.innerHTML = `<span data-icon="layers">${icon('layers')}</span><span>${ASSETS.get(item.assetId).label}</span><span class="layer-role">${item.role === 'main' ? 'Главный' : 'Фоновый'}</span>`;
+    button.innerHTML = `<span class="layer-thumb">${thumbnail(ASSETS.get(item.assetId), scene.size)}</span><span>${ASSETS.get(item.assetId).label}</span><span class="layer-role">${item.role === 'main' ? 'Главный' : 'Фоновый'}</span>`;
     return button;
   }));
   if (!scene.layers.length) $('#layers').innerHTML = '<p class="empty-note">На холсте пока пусто.</p>';
@@ -289,6 +292,7 @@ async function compose(event) {
   const layers = result.objects.map(item => newLayer(item.id, layerKey(), item.role));
   const title = mode === 'meaning' ? input : result.objects.map(item => ASSETS.get(item.id).label).join(' · ');
   commit(composeScene(scene, layers, { title }), null);
+  playEntrance();
   note(`На холсте: ${result.objects.map(item => ASSETS.get(item.id).label.toLowerCase()).join(', ')}.`);
   explain(result);
   announce('Композиция собрана');
@@ -309,12 +313,20 @@ async function meaningResult(input) {
   }
 }
 
+// Короткая анимация появления новой композиции.
+function playEntrance() {
+  artboard.classList.remove('is-entering');
+  void artboard.offsetWidth;
+  artboard.classList.add('is-entering');
+  setTimeout(() => artboard.classList.remove('is-entering'), 500);
+}
+
 function setBusy(value) {
   busy = value;
   const button = $('#compose-button');
   button.disabled = value;
   button.classList.toggle('is-busy', value);
-  button.lastChild.textContent = value ? 'Модель думает…' : 'Собрать композицию';
+  button.querySelector('.compose-label').textContent = value ? 'Модель думает…' : 'Собрать композицию';
 }
 
 function select(key) {
@@ -429,6 +441,16 @@ $('#formats').innerHTML = Object.entries(FORMATS).map(([id, format]) =>
 $('#layout').innerHTML = Object.entries(LAYOUTS).map(([id, label]) => `<option value="${id}">${label}</option>`).join('');
 
 $('#compose').addEventListener('submit', compose);
+query.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); $('#compose').requestSubmit(); }
+});
+$('#theme-toggle').onclick = () => {
+  const light = document.documentElement.dataset.theme !== 'light';
+  if (light) document.documentElement.dataset.theme = 'light';
+  else delete document.documentElement.dataset.theme;
+  try { localStorage.setItem('montage-theme', light ? 'light' : 'dark'); } catch { /* тема на один сеанс */ }
+};
+$('#shortcuts-open').onclick = () => $('#shortcuts-dialog').showModal();
 $('#mode-meaning').onclick = () => changeMode('meaning');
 $('#mode-names').onclick = () => changeMode('names');
 query.oninput = () => { drafts[mode] = query.value; };
@@ -582,6 +604,7 @@ $('#example-grid').onclick = event => {
   if (!example) return;
   const next = { ...structuredClone(example.scene), custom: scene.custom };
   commit(next, null);
+  playEntrance();
   explain(example.explain || null);
   changeMode('meaning', next.title);
   examplesDialog.close();

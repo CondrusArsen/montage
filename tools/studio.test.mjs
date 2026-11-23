@@ -104,7 +104,7 @@ test('SVG export uses independent editable objects, palette slots and clean XML'
     assert.equal((result.match(/data-component=/g) || []).length, scene.layers.length);
     assert.ok(result.includes(PALETTES[scene.palette].colors[0]));
     assert.match(result, /<path /);
-    assert.doesNotMatch(result, /<image\b|<foreignObject\b|@@|data-layer=|class="selection"/);
+    assert.doesNotMatch(result, /<image\b|<foreignObject\b|@@|data-layer=|class="selection"|hover-ring|title-guide/);
     assert.equal(await readFile(new URL(`../examples/${id}.svg`, import.meta.url), 'utf-8'), result);
   }
   assert.match(sceneSVG({ ...EXAMPLES[0].scene, title: '< A & B >' }), /&lt; A &amp; B &gt;/);

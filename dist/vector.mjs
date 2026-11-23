@@ -38,9 +38,11 @@ export function sceneSVG(scene, { editor = false, selected = null, zoom = 1 } = 
     const attributes = editor ? ` data-layer="${escape(layer.key)}" class="canvas-object"` :
       ` id="object-${escape(layer.key)}" data-component="${asset.id}" data-role="${layer.role}"`;
     const hit = editor ? `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="transparent" pointer-events="all"/>` : '';
+    // Подсказка при наведении: тонкая рамка, только в редакторе.
+    const ring = editor && selected !== layer.key ? `<rect class="hover-ring" x="${x}" y="${y}" width="${w}" height="${h}"/>` : '';
     const outline = editor && selected === layer.key ?
       `<rect class="selection" x="${x}" y="${y}" width="${w}" height="${h}"/>` : '';
-    return `<g${attributes} transform="${objectTransform(scene, layer)}">${hit}${recolor(fragment.body, colors)}${outline}</g>`;
+    return `<g${attributes} transform="${objectTransform(scene, layer)}">${hit}${recolor(fragment.body, colors)}${ring}${outline}</g>`;
   }).join('');
   // Подсказка «место для заголовка» видна только в редакторе и в экспорт не попадает.
   const z = TITLE_ZONE[scene.format];

@@ -124,6 +124,7 @@ function intersection(a, b) {
 
 // ---------- Силуэты ----------
 // Маски из dist/masks.mjs: занятые клетки сетки MASK_CELL×MASK_CELL единиц L.
+const HALO = 3;
 const SILHOUETTES = new Map(Object.entries(MASKS).map(([id, roles]) => {
   const { cols, rows, bits } = roles.main;
   const bytes = typeof atob === 'function'
@@ -137,7 +138,17 @@ const SILHOUETTES = new Map(Object.entries(MASKS).map(([id, roles]) => {
       cells.push(index % cols, Math.floor(index / cols));
     }
   }
-  return [id, { cols, rows, grid, cells: Int16Array.from(cells), filled: cells.length / 2 }];
+  // «Ореол» — силуэт, расширенный на HALO клеток: объекты должны стоять с зазором, а не впритык.
+  const halo = new Uint8Array(cols * rows);
+  for (let index = 0; index < grid.length; index++) {
+    if (!grid[index]) continue;
+    const col = index % cols, row = Math.floor(index / cols);
+    for (let dy = -HALO; dy <= HALO; dy++) for (let dx = -HALO; dx <= HALO; dx++) {
+      const c = col + dx, r = row + dy;
+      if (c >= 0 && r >= 0 && c < cols && r < rows) halo[r * cols + c] = 1;
+    }
+  }
+  return [id, { cols, rows, grid, halo, cells: Int16Array.from(cells), filled: cells.length / 2 }];
 }));
 
 // Объект на холсте: рамка, масштаб и силуэт.
@@ -146,10 +157,10 @@ function shape(assetId, cx, cy, scale) {
   return { assetId, cx, cy, r, step: MASK_CELL * scale, mask: SILHOUETTES.get(assetId) };
 }
 
-function covers(s, x, y) {
+function covers(s, x, y, layer = 'grid') {
   const col = Math.floor((x - s.r.x0) / s.step);
   const row = Math.floor((y - s.r.y0) / s.step);
-  return col >= 0 && row >= 0 && col < s.mask.cols && row < s.mask.rows && s.mask.grid[row * s.mask.cols + col] === 1;
+  return col >= 0 && row >= 0 && col < s.mask.cols && row < s.mask.rows && s.mask[layer][row * s.mask.cols + col] === 1;
 }
 
 // Доля силуэта, которая проходит проверку: в кадре, в зоне заголовка и т. п.
@@ -165,10 +176,10 @@ function share(s, test) {
 }
 
 // Насколько силуэты двух объектов закрывают друг друга, доля меньшего.
-function overlap(a, b) {
+function overlap(a, b, layer = 'grid') {
   if (!intersection(a.r, b.r)) return 0;
   const [small, large] = a.mask.filled * a.step ** 2 <= b.mask.filled * b.step ** 2 ? [a, b] : [b, a];
-  return share(small, (x, y) => covers(large, x, y));
+  return share(small, (x, y) => covers(large, x, y, layer));
 }
 
 const inside = r => (x, y) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1;
@@ -176,7 +187,10 @@ const inside = r => (x, y) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1;
 // Оценка позиции: объект виден в кадре, не наезжает на соседей и не лезет в зону текста.
 function placementCost(s, placed, frame, zone, rank) {
   let cost = (1 - share(s, inside(frame))) * 16 + rank * .06;
-  for (const other of placed) cost += Math.max(0, overlap(s, other) - .02) * 14;
+  for (const other of placed) {
+    // Наложение силуэтов почти запрещено, касание впритык — слабый штраф.
+    cost += overlap(s, other) * 20 + overlap(s, other, 'halo') * 3;
+  }
   if (zone) cost += share(s, inside(zone)) * 8;
   return cost;
 }
@@ -196,7 +210,7 @@ function placeMain(layer, hero, placed, scale, frame, zone, style) {
       if (!best || cost < best.cost) best = { cost, shape: candidate };
     }
   });
-  return best.shape;
+  return best;
 }
 
 function placeBackground(layer, mains, scale, frame, zone, heroCenter, used) {
@@ -228,11 +242,33 @@ function depthOf(s) {
 // затем главные объекты от дальнего к ближнему.
 export function layoutScene(layers, format, style) {
   if (!layers.length) return { layers: [], scale: FORMAT_BASE[format] };
+  const base = autoScale(layers, format, style);
+  // Если при обычном масштабе объектам тесно, пробуем чуть мельче и берём лучший вариант.
+  let best = null;
+  for (const factor of [1, .9, .8, .7]) {
+    const attempt = arrange(layers, format, style, +(base * factor).toFixed(4));
+    attempt.cost += (1 - factor) * 6;
+    if (!best || attempt.cost < best.cost - 1e-9) best = attempt;
+    if (attempt.cost < 1.2) break;
+  }
+  const { width, height } = FORMATS[format];
+  const mains = layers.filter(layer => layer.role === 'main');
+  const backgrounds = layers.filter(layer => layer.role !== 'main');
+  const ordered = [...backgrounds, ...[...mains].sort((a, b) => depthOf(best.shapes.get(a.key)) - depthOf(best.shapes.get(b.key)))];
+  return {
+    scale: best.scale,
+    layers: ordered.map(layer => {
+      const { cx, cy } = best.shapes.get(layer.key);
+      return { ...layer, x: +(cx / width).toFixed(4), y: +(cy / height).toFixed(4) };
+    }),
+  };
+}
+
+function arrange(layers, format, style, scale) {
   const { width, height } = FORMATS[format];
   const frame = { x0: 0, y0: 0, x1: width, y1: height };
   const z = style === 'title' ? TITLE_ZONE[format] : null;
   const zone = z && { x0: z[0] * width, y0: z[1] * height, x1: z[2] * width, y1: z[3] * height };
-  const scale = autoScale(layers, format, style);
   const mains = layers.filter(layer => layer.role === 'main');
   const backgrounds = layers.filter(layer => layer.role !== 'main');
   const shapes = new Map();
@@ -240,12 +276,17 @@ export function layoutScene(layers, format, style) {
   const anchor = anchorOf(mains);
   const queue = anchor ? [anchor, ...mains.filter(layer => layer !== anchor)] : [];
   let hero = null;
+  let cost = 0;
   for (const layer of queue) {
-    const placed = [...shapes.values()];
-    const spot = hero ? placeMain(layer, hero, placed, scale, frame, zone, style)
-      : shape(layer.assetId, hx * width, hy * height, scale);
-    hero ||= spot;
-    shapes.set(layer.key, spot);
+    if (!hero) {
+      hero = shape(layer.assetId, hx * width, hy * height, scale);
+      cost += placementCost(hero, [], frame, zone, 0);
+      shapes.set(layer.key, hero);
+      continue;
+    }
+    const spot = placeMain(layer, hero, [...shapes.values()], scale, frame, zone, style);
+    cost += spot.cost;
+    shapes.set(layer.key, spot.shape);
   }
   const mainShapes = [...shapes.values()];
   const heroCenter = hero ? [hero.cx, hero.cy] : [width / 2, height / 2];
@@ -255,14 +296,7 @@ export function layoutScene(layers, format, style) {
     used.push(spot);
     shapes.set(layer.key, spot);
   }
-  const ordered = [...backgrounds, ...[...mains].sort((a, b) => depthOf(shapes.get(a.key)) - depthOf(shapes.get(b.key)))];
-  return {
-    scale,
-    layers: ordered.map(layer => {
-      const { cx, cy } = shapes.get(layer.key);
-      return { ...layer, x: +(cx / width).toFixed(4), y: +(cy / height).toFixed(4) };
-    }),
-  };
+  return { scale, shapes, cost };
 }
 
 // Новый объект из библиотеки встаёт рядом с композицией, остальные слои не двигаются.
@@ -273,7 +307,7 @@ export function placeAdded(scene, layer) {
   const placed = scene.layers.map(item => shape(item.assetId, item.x * width, item.y * height, scale));
   const hero = placed[scene.layers.findIndex(item => item.role === 'main')] ||
     { cx: width / 2, cy: height / 2, r: rect(width / 2, height / 2, { w: width * .3, h: height * .3 }) };
-  const spot = placeMain(layer, hero, placed, scale, frame, null, 'compact');
+  const spot = placeMain(layer, hero, placed, scale, frame, null, 'compact').shape;
   return { ...layer, x: +clamp(spot.cx / width, .02, .98).toFixed(4), y: +clamp(spot.cy / height, .02, .98).toFixed(4) };
 }
 

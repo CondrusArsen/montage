@@ -8,19 +8,22 @@
   <title>Монтаж — конструктор иллюстраций</title>
   <link rel="icon" href="mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="studio.css">
+  <script>try { if (localStorage.getItem('montage-theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch {}</script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="./" aria-label="Монтаж, главная"><img src="mark.svg" alt="">Монтаж<span class="brand-divider"></span><span class="brand-label">Конструктор иллюстраций</span></a>
     <div class="top-actions">
-      <button id="examples-open" class="button button-quiet" type="button"><span data-icon="grid"></span>Примеры</button>
-      <button id="export" class="button button-dark" type="button"><span data-icon="download"></span>Скачать SVG</button>
+      <button id="shortcuts-open" class="icon-button" type="button" title="Горячие клавиши" aria-label="Горячие клавиши"><span data-icon="keyboard"></span></button>
+      <button id="theme-toggle" class="icon-button theme-toggle" type="button" title="Светлая или тёмная тема" aria-label="Переключить тему"><span class="sun" data-icon="sun"></span><span class="moon" data-icon="moon"></span></button>
+      <button id="examples-open" class="button button-quiet" type="button"><span data-icon="grid"></span><span class="button-label">Примеры</span></button>
+      <button id="export" class="button button-accent" type="button"><span data-icon="download"></span><span class="button-label">Скачать SVG</span></button>
     </div>
   </header>
   <main class="workspace">
     <aside class="setup" aria-label="Сборка и библиотека">
       <section class="setup-form">
-        <header class="section-heading"><h1>Собрать сцену</h1><span data-icon="spark" class="section-glyph"></span></header>
+        <header class="section-heading"><h1><span class="step">1</span>Что изобразить</h1><span data-icon="spark" class="section-glyph"></span></header>
         <div class="segmented" role="group" aria-label="Способ подбора">
           <button type="button" id="mode-meaning" aria-pressed="true">По заголовку</button>
           <button type="button" id="mode-names" aria-pressed="false">По объектам</button>
@@ -33,19 +36,19 @@
             <span id="ai-status" class="ai-status"></span>
             <button type="button" id="ai-open" class="link-button">Настроить ИИ</button>
           </div>
-          <button id="compose-button" class="button button-accent compose-button" type="submit"><span data-icon="spark"></span>Собрать композицию</button>
+          <button id="compose-button" class="button button-accent compose-button" type="submit"><span data-icon="spark"></span><span class="spinner" aria-hidden="true"></span><span class="compose-label">Собрать композицию</span></button>
         </form>
         <div id="explain" class="explain" hidden aria-live="polite"></div>
       </section>
       <section class="library-section">
-        <header class="section-heading"><h2>Библиотека</h2><span id="catalog-count" class="muted-count"></span></header>
+        <header class="section-heading"><h2>Библиотека <span class="section-hint">клик — добавить</span></h2><span id="catalog-count" class="muted-count"></span></header>
         <div class="search"><span data-icon="search"></span><input id="search" type="search" placeholder="Найти компонент" aria-label="Найти компонент"></div>
         <div id="catalog" class="catalog"></div>
       </section>
     </aside>
     <section class="workbench" aria-label="Редактор сцены">
       <header class="workbench-header">
-        <div><div class="workspace-label"><span data-icon="layers"></span> Композиция</div><h2 id="scene-title"></h2></div>
+        <div><div class="workspace-label"><span class="step">2</span> Композиция</div><h2 id="scene-title"></h2></div>
         <div class="history" aria-label="История изменений">
           <button id="undo" class="icon-button" type="button" title="Отменить (Ctrl+Z)" aria-label="Отменить" data-icon="undo"></button>
           <button id="redo" class="icon-button" type="button" title="Повторить (Ctrl+Shift+Z)" aria-label="Повторить" data-icon="redo"></button>
@@ -67,11 +70,11 @@
           </div>
         </footer>
       </div>
-      <footer class="workbench-footer"><span data-icon="pointer"></span>Перетаскивай объекты на холсте или выбирай их в списке слоёв.</footer>
+      <footer class="workbench-footer"><span><span data-icon="pointer"></span>Тяни объект мышью</span><span><kbd>←</kbd><kbd>→</kbd> сдвиг</span><span><kbd>Ctrl</kbd><kbd>D</kbd> копия</span><span><kbd>Del</kbd> удалить</span><span><kbd>Ctrl</kbd><kbd>Z</kbd> отмена</span></footer>
     </section>
     <aside class="inspector" aria-label="Параметры композиции">
       <section class="panel settings-panel">
-        <header class="section-heading"><h2>Холст</h2><span data-icon="sliders" class="section-glyph"></span></header>
+        <header class="section-heading"><h2><span class="step">3</span>Холст</h2><span data-icon="sliders" class="section-glyph"></span></header>
         <div class="setting"><label>Формат</label><div id="formats" class="format-options" role="group" aria-label="Формат холста"></div></div>
         <div class="setting size-setting"><label>Детализация</label><div class="segmented size-options" role="group" aria-label="Детализация"><button type="button" data-size="S" title="Упрощённые исходники">S</button><button type="button" data-size="L" title="Подробные исходники">L</button></div></div>
         <div class="setting"><label for="layout">Раскладка</label><select id="layout"></select></div>
@@ -117,12 +120,12 @@
       <label for="ai-provider">Сервис</label>
       <select id="ai-provider"></select>
       <label for="ai-key">API-ключ <a id="ai-key-link" href="#" target="_blank" rel="noopener noreferrer">где взять</a></label>
-      <input id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="Вставь ключ">
+      <input id="ai-key" class="text-input" type="password" autocomplete="off" spellcheck="false" placeholder="Вставь ключ">
       <label for="ai-model">Модель</label>
-      <input id="ai-model" type="text" autocomplete="off" spellcheck="false">
+      <input id="ai-model" class="text-input" type="text" autocomplete="off" spellcheck="false">
       <div id="ai-endpoint-field" class="ai-endpoint" hidden>
         <label for="ai-endpoint">Адрес API</label>
-        <input id="ai-endpoint" type="url" autocomplete="off" spellcheck="false" placeholder="http://localhost:11434/v1">
+        <input id="ai-endpoint" class="text-input" type="url" autocomplete="off" spellcheck="false" placeholder="http://localhost:11434/v1">
       </div>
       <label class="check"><input id="ai-remember" type="checkbox"> Запомнить ключ на этом устройстве</label>
       <p id="ai-error" class="form-error" role="alert"></p>
@@ -131,6 +134,20 @@
         <button type="submit" class="button button-dark">Сохранить</button>
       </div>
     </form>
+  </dialog>
+  <dialog id="shortcuts-dialog" aria-labelledby="shortcuts-heading">
+    <div class="dialog-inner">
+      <header class="dialog-header"><h2 id="shortcuts-heading">Горячие клавиши</h2><button type="button" class="icon-button" data-close data-icon="close" aria-label="Закрыть"></button></header>
+      <dl class="shortcuts">
+        <dt><kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd></dt><dd>Сдвинуть выбранный объект, с <kbd>Shift</kbd> — быстрее</dd>
+        <dt><kbd>Ctrl</kbd><kbd>D</kbd></dt><dd>Дублировать объект</dd>
+        <dt><kbd>Delete</kbd></dt><dd>Удалить объект</dd>
+        <dt><kbd>Ctrl</kbd><kbd>Z</kbd></dt><dd>Отменить</dd>
+        <dt><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Z</kbd></dt><dd>Повторить</dd>
+        <dt><kbd>Esc</kbd></dt><dd>Снять выделение</dd>
+        <dt><kbd>Ctrl</kbd><kbd>Enter</kbd></dt><dd>Собрать композицию из поля заголовка</dd>
+      </dl>
+    </div>
   </dialog>
   <dialog id="examples-dialog" aria-labelledby="examples-heading">
     <div class="dialog-inner">
