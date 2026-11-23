@@ -1,15 +1,17 @@
-import { initialScene, layoutLayers, newLayer } from './engine.mjs';
+import { CATALOG } from './assets.mjs';
+import { composeScene, newLayer } from './engine.mjs';
+import { suggest } from './semantics.mjs';
 
-const assemble = (title, format, size, palette, layout, entries) => ({
-  ...initialScene(), title, format, size, palette, layout,
-  layers: layoutLayers(entries.map(([assetId, role], index) => newLayer(assetId, `example-${index}`, role)), format, layout)
-    .sort((a, b) => Number(b.role === 'background') - Number(a.role === 'background')),
-});
+// Примеры собираются тем же путём, что и в редакторе: офлайн-подбор по заголовку и автораскладка.
+function assemble(id, title, format, size, palette, layout) {
+  const objects = suggest(title, CATALOG);
+  const scene = composeScene({ title, format, size, palette, layout, custom: null },
+    objects.map((item, index) => newLayer(item.id, `${id}-${index}`, item.role)));
+  return { id, scene, explain: { source: 'offline', objects } };
+}
 
 export const EXAMPLES = [
-  { id: 'knowledge', scene: initialScene() },
-  { id: 'focus', scene: assemble('Найти фокус в шуме', 'square', 'L', 'laguna', 'offset',
-    [['headphones', 'main'], ['lamp', 'main'], ['book', 'background']]) },
-  { id: 'budget', scene: assemble('Навести порядок в бюджете', 'tall', 'S', 'peach', 'title',
-    [['folder', 'main'], ['wallet', 'main'], ['coin', 'main']]) },
+  assemble('knowledge', 'Собрать знания по кусочкам', 'wide', 'L', 'iris', 'compact'),
+  assemble('podcasts', 'Подкасты для долгой дороги', 'square', 'L', 'laguna', 'offset'),
+  assemble('budget', 'Навести порядок в бюджете', 'tall', 'S', 'peach', 'title'),
 ];

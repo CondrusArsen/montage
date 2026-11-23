@@ -1,5 +1,5 @@
 import { BACKDROPS, CATALOG } from './assets.mjs';
-import { FORMATS, PALETTES } from './engine.mjs';
+import { FORMATS, PALETTES, S_FACTOR, TITLE_ZONE, autoScale } from './engine.mjs';
 
 export const ASSETS = new Map(CATALOG.map(asset => [asset.id, asset]));
 const fixed = value => +value.toFixed(3);
@@ -16,8 +16,8 @@ export function thumbnail(asset, size) {
 export function objectTransform(scene, layer) {
   const { width, height } = FORMATS[scene.format];
   const { box: [x, y, w, h] } = ASSETS.get(layer.assetId).variants[scene.size][layer.role];
-  const reference = Math.min(width * .47, height * .79);
-  const scale = reference / (scene.size === 'L' ? 1449 : 726) * (scene.layout === 'title' ? .85 : 1);
+  const base = Number.isFinite(scene.scale) ? scene.scale : autoScale(scene.layers, scene.format, scene.layout);
+  const scale = base * (scene.fit || 1) * (scene.size === 'L' ? 1 : S_FACTOR);
   return `translate(${fixed(layer.x * width)} ${fixed(layer.y * height)}) rotate(${fixed(layer.angle)}) scale(${fixed(scale)}) translate(${fixed(-x - w / 2)} ${fixed(-y - h / 2)})`;
 }
 
@@ -42,7 +42,11 @@ export function sceneSVG(scene, { editor = false, selected = null, zoom = 1 } = 
       `<rect class="selection" x="${x}" y="${y}" width="${w}" height="${h}"/>` : '';
     return `<g${attributes} transform="${objectTransform(scene, layer)}">${hit}${recolor(fragment.body, colors)}${outline}</g>`;
   }).join('');
+  // Подсказка «место для заголовка» видна только в редакторе и в экспорт не попадает.
+  const z = TITLE_ZONE[scene.format];
+  const guide = editor && scene.layout === 'title' ?
+    `<rect class="title-guide" x="${z[0] * width + 18}" y="${z[1] * height + 18}" width="${(z[2] - z[0]) * width - 36}" height="${(z[3] - z[1]) * height - 36}" rx="10"/>` : '';
   const id = editor ? 'editor-frame' : 'export-frame';
   const controls = editor ? ` class="artboard" role="img" aria-label="Холст композиции" data-zoom="${zoom}"` : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"${controls}><title>${escape(scene.title || 'Композиция')}</title><defs><clipPath id="${id}"><rect width="${width}" height="${height}"/></clipPath></defs><g clip-path="url(#${id})">${backdrop}${groups}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"${controls}><title>${escape(scene.title || 'Композиция')}</title><defs><clipPath id="${id}"><rect width="${width}" height="${height}"/></clipPath></defs><g clip-path="url(#${id})">${backdrop}${groups}${guide}</g></svg>`;
 }
