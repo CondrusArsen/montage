@@ -1,8 +1,10 @@
 import { CATALOG } from './assets.mjs';
 import {
-  FORMATS, LAYOUTS, PALETTES, normalize, fromMeaning, fromNames, layoutLayers,
+  FORMATS, LAYOUTS, PALETTES, normalize, fromNames, composeScene, placeAdded,
   parsePalette, newLayer, initialScene,
 } from './engine.mjs';
+import { suggest } from './semantics.mjs';
+import { PROVIDERS, suggestWithAI } from './ai.mjs';
 import { ASSETS, objectTransform, sceneSVG, thumbnail } from './vector.mjs';
 import { EXAMPLES } from './examples.mjs';
 
@@ -28,7 +30,8 @@ const icons = {
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
 };
 
-const storageKey = 'montage-illustration-scene-v1';
+const storageKey = 'montage-illustration-scene-v2';
+const aiKey = 'montage-ai-settings-v1';
 const artboard = $('#artboard');
 const stage = $('#stage');
 const query = $('#query');
@@ -42,6 +45,9 @@ let zoom = 1;
 let drag = null;
 let toastTimer;
 let renderedSize = '';
+let busy = false;
+let fitStart = null;
+let ai = loadAI();
 const drafts = { meaning: scene.title, names: '' };
 const layerKey = () => [...crypto.getRandomValues(new Uint32Array(3))].map(part => part.toString(16).padStart(8, '0')).join('');
 
@@ -54,7 +60,8 @@ function loadScene() {
     const value = JSON.parse(localStorage.getItem(storageKey));
     if (!value || !Object.hasOwn(FORMATS, value.format) || !Object.hasOwn(LAYOUTS, value.layout) ||
         !['S','L'].includes(value.size) || typeof value.title !== 'string' ||
-        !Array.isArray(value.layers) || value.layers.length > 60) return initialScene();
+        !Array.isArray(value.layers) || value.layers.length > 60 ||
+        !Number.isFinite(value.scale) || !(value.fit >= .6 && value.fit <= 1.6)) return initialScene();
     if (value.palette === 'custom') value.custom = parsePalette(JSON.stringify(value.custom));
     else if (!Object.hasOwn(PALETTES, value.palette)) return initialScene();
     if (value.layers.some(layer => !ASSETS.has(layer.assetId) || !['main','background'].includes(layer.role) ||
@@ -63,6 +70,38 @@ function loadScene() {
   } catch {
     return initialScene();
   }
+}
+
+// Настройки ИИ: ключ остаётся в sessionStorage, а с галочкой «запомнить» — в localStorage.
+function loadAI() {
+  const empty = { enabled: false, provider: 'openrouter', key: '', model: '', endpoint: '', remember: false };
+  for (const store of [() => sessionStorage, () => localStorage]) {
+    try {
+      const value = JSON.parse(store().getItem(aiKey));
+      if (value && Object.hasOwn(PROVIDERS, value.provider)) return { ...empty, ...value };
+    } catch { /* хранилище может быть выключено */ }
+  }
+  return empty;
+}
+
+function saveAI() {
+  try {
+    sessionStorage.setItem(aiKey, JSON.stringify(ai));
+    if (ai.remember) localStorage.setItem(aiKey, JSON.stringify(ai));
+    else localStorage.removeItem(aiKey);
+  } catch { /* настройки действуют до перезагрузки */ }
+}
+
+function aiReady() {
+  return ai.enabled && Boolean(ai.key || ai.provider === 'custom');
+}
+
+function renderAIStatus() {
+  $('#ai-row').hidden = mode !== 'meaning';
+  $('#ai-status').innerHTML = aiReady()
+    ? `<i class="dot dot-on"></i>ИИ: ${PROVIDERS[ai.provider].short}`
+    : '<i class="dot"></i>Офлайн-словарь';
+  $('#ai-open').textContent = aiReady() ? 'Изменить' : 'Подключить ИИ';
 }
 
 function saveScene() {
@@ -84,6 +123,25 @@ function note(message, error = false) {
   field.textContent = message;
   field.classList.toggle('is-error', error);
   field.setAttribute('aria-live', 'polite');
+}
+
+function escapeHTML(text) {
+  return String(text).replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]);
+}
+
+// Почему выбраны именно эти объекты: источник подбора, метафора и причина для каждого.
+function explain(result) {
+  const box = $('#explain');
+  if (!result) { box.hidden = true; return; }
+  const source = result.source === 'ai' ? `ИИ · ${PROVIDERS[ai.provider].short}` :
+    result.source === 'names' ? 'По названиям' : 'Словарь ассоциаций';
+  const items = result.objects.map(item => `<li><b>${ASSETS.get(item.id).label}</b>` +
+    `${item.role === 'background' ? ' <span class="tag">фон</span>' : ''}` +
+    `${item.reason ? ` — ${escapeHTML(item.reason)}` : ''}</li>`).join('');
+  box.innerHTML = `<span class="badge${result.source === 'ai' ? ' badge-ai' : ''}">${source}</span>` +
+    (result.metaphor ? `<p class="metaphor">${escapeHTML(result.metaphor)}</p>` : '') +
+    `<ul>${items}</ul>` + (result.warning ? `<p class="explain-warning">${escapeHTML(result.warning)}</p>` : '');
+  box.hidden = false;
 }
 
 function renderCatalog() {
@@ -147,6 +205,9 @@ function render() {
   $('#scene-title').textContent = scene.title || 'Новая композиция';
   document.title = `${scene.title || 'Композиция'} — Монтаж`;
   $('#layout').value = scene.layout;
+  $('#fit').value = Math.round((scene.fit || 1) * 100);
+  $('#fit-value').textContent = `${Math.round((scene.fit || 1) * 100)}%`;
+  $('#relayout').disabled = !scene.layers.length;
   $('#export').disabled = !scene.layers.length;
   $('#undo').disabled = !undo.length;
   $('#redo').disabled = !redo.length;
@@ -188,36 +249,67 @@ function changeMode(next, value = drafts[next]) {
   query.placeholder = meaning ? 'Например, «Найти фокус в шуме»' : 'Например, книга, пазлы, карандаш';
   note(meaning ? 'Подберём компоненты по смыслу из исходной библиотеки.' :
     'Перечисли нужные предметы через запятую.');
+  renderAIStatus();
 }
 
-function compose(event) {
+async function compose(event) {
   event.preventDefault();
+  if (busy) return;
   const input = query.value.trim();
   if (!input) {
     note('Введи заголовок или названия объектов.', true);
     return;
   }
-  const result = mode === 'meaning' ? { assets: fromMeaning(input, CATALOG), missing: [] } : fromNames(input, CATALOG);
-  if (result.missing.length) {
-    note(`В библиотеке нет: ${result.missing.join(', ')}. Проверь названия в каталоге.`, true);
+  let result;
+  if (mode === 'names') {
+    const found = fromNames(input, CATALOG);
+    if (found.missing.length) {
+      note(`В библиотеке нет: ${found.missing.join(', ')}. Проверь названия в каталоге.`, true);
+      return;
+    }
+    if (found.assets.length > 8) {
+      note('Для одной автоматической раскладки выбери до 8 объектов. Остальные можно добавить на холст из библиотеки.', true);
+      return;
+    }
+    result = { source: 'names', objects: found.assets.map(asset => ({ id: asset.id, role: 'main', reason: '' })) };
+  } else {
+    result = await meaningResult(input);
+  }
+  if (!result.objects.length) {
+    note(aiReady() ? 'Совпадений не нашлось. Переформулируй заголовок.' :
+      'Словарь не нашёл знакомых смыслов. Уточни тему (чтение, звук, бюджет) или подключи ИИ.', true);
+    explain(null);
     return;
   }
-  if (!result.assets.length) {
-    note('Совпадений по смыслу нет. Добавь конкретную тему, например чтение, звук или бюджет.', true);
-    return;
-  }
-  if (result.assets.length > 8) {
-    note('Для одной автоматической раскладки выбери до 8 объектов. Остальные можно добавить на холст из библиотеки.', true);
-    return;
-  }
-  const layers = result.assets.map((asset, index) =>
-    newLayer(asset.id, layerKey(), mode === 'meaning' && index === 2 ? 'background' : 'main'));
-  const title = mode === 'meaning' ? input : result.assets.map(asset => asset.label).join(' · ');
-  const laidOut = layoutLayers(layers, scene.format, scene.layout)
-    .sort((a, b) => Number(b.role === 'background') - Number(a.role === 'background'));
-  commit({ ...scene, title, layers: laidOut }, null);
-  note(`На холсте: ${result.assets.map(asset => asset.label.toLowerCase()).join(', ')}.`);
+  const layers = result.objects.map(item => newLayer(item.id, layerKey(), item.role));
+  const title = mode === 'meaning' ? input : result.objects.map(item => ASSETS.get(item.id).label).join(' · ');
+  commit(composeScene(scene, layers, { title }), null);
+  note(`На холсте: ${result.objects.map(item => ASSETS.get(item.id).label.toLowerCase()).join(', ')}.`);
+  explain(result);
   announce('Композиция собрана');
+}
+
+// Сначала ИИ, если он подключён. При ошибке сети или ключа — словарь, с пометкой почему.
+async function meaningResult(input) {
+  const offline = warning => ({ source: 'offline', warning, objects: suggest(input, CATALOG) });
+  if (!aiReady()) return offline();
+  setBusy(true);
+  try {
+    const answer = await suggestWithAI(ai, input, CATALOG);
+    return { source: 'ai', metaphor: answer.metaphor, objects: answer.objects };
+  } catch (error) {
+    return offline(`ИИ недоступен: ${error.message} Использован словарь.`);
+  } finally {
+    setBusy(false);
+  }
+}
+
+function setBusy(value) {
+  busy = value;
+  const button = $('#compose-button');
+  button.disabled = value;
+  button.classList.toggle('is-busy', value);
+  button.lastChild.textContent = value ? 'Модель думает…' : 'Собрать композицию';
 }
 
 function select(key) {
@@ -232,9 +324,8 @@ function addObject(id) {
     announce('На холсте уже 60 слоёв.');
     return;
   }
-  const layer = newLayer(id, layerKey());
-  const position = layoutLayers([...scene.layers, layer], scene.format, scene.layout).at(-1);
-  commit({ ...scene, layers: [...scene.layers, position] }, layer.key);
+  const layer = placeAdded(scene, newLayer(id, layerKey()));
+  commit({ ...scene, layers: [...scene.layers, layer] }, layer.key);
   announce(`Добавлено: ${ASSETS.get(id).label.toLowerCase()}`);
 }
 
@@ -271,7 +362,7 @@ function deleteLayer() {
 
 function updateFormat(format) {
   if (scene.format === format) return;
-  commit({ ...scene, format, layers: layoutLayers(scene.layers, format, scene.layout) });
+  commit(composeScene(scene, scene.layers, { format }));
 }
 
 function updateZoom(value) {
@@ -351,8 +442,21 @@ $$('[data-size]').forEach(button => {
   };
 });
 $('#layout').onchange = event => {
-  const layout = event.target.value;
-  commit({ ...scene, layout, layers: layoutLayers(scene.layers, scene.format, layout) });
+  commit(composeScene(scene, scene.layers, { layout: event.target.value }));
+};
+$('#relayout').onclick = () => commit(composeScene(scene, scene.layers));
+// Пока ползунок тянут, холст перерисовывается без записи в историю; отпустили — один шаг отмены.
+$('#fit').onpointerdown = () => { fitStart = scene; };
+$('#fit').oninput = event => {
+  fitStart ||= scene;
+  $('#fit-value').textContent = `${event.target.value}%`;
+  scene = { ...scene, fit: Number(event.target.value) / 100 };
+  renderCanvas();
+};
+$('#fit').onchange = event => {
+  const before = fitStart || scene;
+  fitStart = null;
+  commit({ ...scene, fit: Number(event.target.value) / 100 }, selected, before);
 };
 $('#palettes').onclick = event => {
   const option = event.target.closest('[data-palette]');
@@ -421,6 +525,47 @@ $('#palette-form').onsubmit = event => {
   }
 };
 
+const aiDialog = $('#ai-dialog');
+$('#ai-provider').innerHTML = Object.entries(PROVIDERS).map(([id, item]) => `<option value="${id}">${item.label}</option>`).join('');
+function fillAIForm(providerId) {
+  const provider = PROVIDERS[providerId];
+  const same = providerId === ai.provider;
+  $('#ai-provider').value = providerId;
+  $('#ai-key').value = same ? ai.key : '';
+  $('#ai-model').value = same && ai.model ? ai.model : provider.model;
+  $('#ai-model').placeholder = provider.model || 'например, qwen2.5:7b';
+  $('#ai-endpoint').value = same && ai.endpoint ? ai.endpoint : provider.endpoint;
+  $('#ai-endpoint-field').hidden = providerId !== 'custom';
+  $('#ai-key-link').hidden = !provider.keys;
+  $('#ai-key-link').href = provider.keys || '#';
+  $('#ai-key').placeholder = providerId === 'custom' ? 'Необязательно для локальной модели' : 'Вставь ключ';
+  $('#ai-remember').checked = ai.remember;
+  $('#ai-error').textContent = '';
+}
+$('#ai-open').onclick = () => { fillAIForm(ai.provider); aiDialog.showModal(); };
+$('#ai-provider').onchange = event => fillAIForm(event.target.value);
+$('#ai-form').onsubmit = event => {
+  event.preventDefault();
+  const provider = $('#ai-provider').value;
+  const key = $('#ai-key').value.trim();
+  const endpoint = $('#ai-endpoint').value.trim();
+  if (!key && provider !== 'custom') { $('#ai-error').textContent = 'Вставь API-ключ или выбери «Свой» для локальной модели.'; return; }
+  if (provider === 'custom' && !$('#ai-model').value.trim()) { $('#ai-error').textContent = 'Укажи название модели, например qwen2.5:7b.'; return; }
+  if (provider === 'custom' && !/^https?:[/][/]/.test(endpoint)) { $('#ai-error').textContent = 'Укажи адрес API, начиная с http:// или https://.'; return; }
+  ai = { enabled: true, provider, key, model: $('#ai-model').value.trim(), endpoint: provider === 'custom' ? endpoint : '', remember: $('#ai-remember').checked };
+  saveAI();
+  renderAIStatus();
+  aiDialog.close();
+  announce(`Подбор через ${PROVIDERS[provider].short} включён`);
+};
+$('#ai-off').onclick = () => {
+  ai = { ...ai, enabled: false, key: '', remember: false };
+  saveAI();
+  renderAIStatus();
+  aiDialog.close();
+  announce('ИИ выключен, работает словарь');
+};
+
 const examplesDialog = $('#examples-dialog');
 $('#example-grid').innerHTML = EXAMPLES.map(({ scene: example, id }) =>
   `<button type="button" class="example" data-example="${id}"><i style="background:${PALETTES[example.palette].colors[0]}"></i><strong>${example.title}</strong><small>${FORMATS[example.format].label} · ${example.size}</small></button>`
@@ -432,6 +577,7 @@ $('#example-grid').onclick = event => {
   if (!example) return;
   const next = { ...structuredClone(example.scene), custom: scene.custom };
   commit(next, null);
+  explain(example.explain || null);
   changeMode('meaning', next.title);
   examplesDialog.close();
   announce('Пример открыт');

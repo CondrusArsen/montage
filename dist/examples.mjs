@@ -13,5 +13,5 @@ function assemble(id, title, format, size, palette, layout) {
 export const EXAMPLES = [
   assemble('knowledge', 'Собрать знания по кусочкам', 'wide', 'L', 'iris', 'compact'),
   assemble('podcasts', 'Подкасты для долгой дороги', 'square', 'L', 'laguna', 'offset'),
-  assemble('budget', 'Навести порядок в бюджете', 'tall', 'S', 'peach', 'title'),
+  assemble('budget', 'Навести порядок в бюджете', 'tall', 'S', 'peach', 'offset'),
 ];

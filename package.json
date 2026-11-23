@@ -1,13 +1,16 @@
 {
   "name": "montage-illustration-studio",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node tools/serve.mjs",
-    "test": "node --test tools/studio.test.mjs",
+    "test": "node --test tools/studio.test.mjs tools/ai.test.mjs",
+    "eval": "node tools/eval.mjs",
     "examples": "node tools/make-examples.mjs",
     "standalone": "node tools/build-standalone.mjs"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  }
 }

@@ -29,8 +29,13 @@
           <label id="query-label" for="query">Заголовок или метафора</label>
           <textarea id="query" rows="3" maxlength="250" spellcheck="false" required></textarea>
           <p id="query-note" class="field-note"></p>
-          <button class="button button-accent compose-button" type="submit"><span data-icon="spark"></span>Собрать композицию</button>
+          <div id="ai-row" class="ai-row">
+            <span id="ai-status" class="ai-status"></span>
+            <button type="button" id="ai-open" class="link-button">Настроить ИИ</button>
+          </div>
+          <button id="compose-button" class="button button-accent compose-button" type="submit"><span data-icon="spark"></span>Собрать композицию</button>
         </form>
+        <div id="explain" class="explain" hidden aria-live="polite"></div>
       </section>
       <section class="library-section">
         <header class="section-heading"><h2>Библиотека</h2><span id="catalog-count" class="muted-count"></span></header>
@@ -70,6 +75,8 @@
         <div class="setting"><label>Формат</label><div id="formats" class="format-options" role="group" aria-label="Формат холста"></div></div>
         <div class="setting size-setting"><label>Детализация</label><div class="segmented size-options" role="group" aria-label="Детализация"><button type="button" data-size="S" title="Упрощённые исходники">S</button><button type="button" data-size="L" title="Подробные исходники">L</button></div></div>
         <div class="setting"><label for="layout">Раскладка</label><select id="layout"></select></div>
+        <div class="setting scale-setting"><label for="fit">Масштаб сцены <output id="fit-value" for="fit">100%</output></label><input id="fit" type="range" min="60" max="160" step="5" value="100" title="Все объекты меняются вместе, пропорции между ними сохраняются"></div>
+        <button type="button" id="relayout" class="button button-quiet relayout-button"><span data-icon="spark"></span>Разложить заново</button>
       </section>
       <section class="panel palette-panel">
         <header class="section-heading"><h2>Палитра</h2><button type="button" id="palette-open" class="icon-button" data-icon="upload" title="Загрузить палитру" aria-label="Загрузить палитру"></button></header>
@@ -101,6 +108,28 @@
       <label class="file-button"><span data-icon="upload"></span>Выбрать файл<input id="palette-file" type="file" accept=".json,.txt"></label>
       <p id="palette-error" class="form-error" role="alert"></p>
       <button type="submit" class="button button-dark">Применить палитру</button>
+    </form>
+  </dialog>
+  <dialog id="ai-dialog" aria-labelledby="ai-heading">
+    <form id="ai-form">
+      <header class="dialog-header"><h2 id="ai-heading">Подбор через ИИ</h2><button type="button" class="icon-button" data-close data-icon="close" aria-label="Закрыть"></button></header>
+      <p>Модель читает заголовок, находит метафору и выбирает объекты только из библиотеки. Без ключа работает встроенный словарь ассоциаций. Ключ отправляется только выбранному сервису и хранится в этом браузере.</p>
+      <label for="ai-provider">Сервис</label>
+      <select id="ai-provider"></select>
+      <label for="ai-key">API-ключ <a id="ai-key-link" href="#" target="_blank" rel="noopener noreferrer">где взять</a></label>
+      <input id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="Вставь ключ">
+      <label for="ai-model">Модель</label>
+      <input id="ai-model" type="text" autocomplete="off" spellcheck="false">
+      <div id="ai-endpoint-field" class="ai-endpoint" hidden>
+        <label for="ai-endpoint">Адрес API</label>
+        <input id="ai-endpoint" type="url" autocomplete="off" spellcheck="false" placeholder="http://localhost:11434/v1">
+      </div>
+      <label class="check"><input id="ai-remember" type="checkbox"> Запомнить ключ на этом устройстве</label>
+      <p id="ai-error" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" id="ai-off" class="button button-quiet">Выключить ИИ</button>
+        <button type="submit" class="button button-dark">Сохранить</button>
+      </div>
     </form>
   </dialog>
   <dialog id="examples-dialog" aria-labelledby="examples-heading">
