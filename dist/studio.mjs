@@ -43,6 +43,7 @@ let drag = null;
 let toastTimer;
 let renderedSize = '';
 const drafts = { meaning: scene.title, names: '' };
+const layerKey = () => [...crypto.getRandomValues(new Uint32Array(3))].map(part => part.toString(16).padStart(8, '0')).join('');
 
 function icon(name) {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${icons[name]}</svg>`;
@@ -210,7 +211,7 @@ function compose(event) {
     return;
   }
   const layers = result.assets.map((asset, index) =>
-    newLayer(asset.id, crypto.randomUUID(), mode === 'meaning' && index === 2 ? 'background' : 'main'));
+    newLayer(asset.id, layerKey(), mode === 'meaning' && index === 2 ? 'background' : 'main'));
   const title = mode === 'meaning' ? input : result.assets.map(asset => asset.label).join(' · ');
   const laidOut = layoutLayers(layers, scene.format, scene.layout)
     .sort((a, b) => Number(b.role === 'background') - Number(a.role === 'background'));
@@ -231,7 +232,7 @@ function addObject(id) {
     announce('На холсте уже 60 слоёв.');
     return;
   }
-  const layer = newLayer(id, crypto.randomUUID());
+  const layer = newLayer(id, layerKey());
   const position = layoutLayers([...scene.layers, layer], scene.format, scene.layout).at(-1);
   commit({ ...scene, layers: [...scene.layers, position] }, layer.key);
   announce(`Добавлено: ${ASSETS.get(id).label.toLowerCase()}`);
@@ -257,7 +258,7 @@ function duplicate() {
   const index = scene.layers.findIndex(item => item.key === selected);
   if (index < 0 || scene.layers.length >= 60) return;
   const original = scene.layers[index];
-  const layer = { ...original, key: crypto.randomUUID(), x: Math.min(.99, original.x + .025), y: Math.min(.99, original.y + .035) };
+  const layer = { ...original, key: layerKey(), x: Math.min(.99, original.x + .025), y: Math.min(.99, original.y + .035) };
   const layers = [...scene.layers];
   layers.splice(index + 1, 0, layer);
   commit({ ...scene, layers }, layer.key);
@@ -464,7 +465,7 @@ const demo = EXAMPLES.find(example => example.id === params.get('case'));
 if (demo) {
   scene = structuredClone(demo.scene);
   // Opening a demo link leaves the reader's saved composition in place until an edit.
-  history.replaceState(null, '', location.pathname);
+  if (location.protocol !== 'file:') history.replaceState(null, '', location.pathname);
 }
 changeMode(params.get('mode') === 'names' ? 'names' : 'meaning', params.get('mode') === 'names' ?
   (demo?.scene.layers.map(layer => ASSETS.get(layer.assetId).label).join(', ') || '') : scene.title);

@@ -243,7 +243,7 @@ dialog::backdrop { background: #22251a65; }
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="./" aria-label="Монтаж, главная"><img src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2040%2040%22%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2238%22%20height%3D%2238%22%20rx%3D%2211%22%20fill%3D%22%23e5f1ab%22%20stroke%3D%22%2322251c%22%20stroke-width%3D%221.5%22%2F%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%2322251c%22%20stroke-width%3D%221.6%22%20stroke-linejoin%3D%22round%22%20d%3D%22m8.5%2018.1%2011.5-7%2011.5%207-11.5%207zm0%204.9L20%2030l11.5-7m-17-8.5%2011.7%207%22%2F%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2218.1%22%20r%3D%221.6%22%20fill%3D%22%2322251c%22%2F%3E%3C%2Fsvg%3E%0A" alt="">Монтаж<span class="brand-divider"></span><span class="brand-label">Конструктор иллюстраций</span></a>
+    <a class="brand" href="Montage.html" aria-label="Монтаж, главная"><img src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2040%2040%22%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2238%22%20height%3D%2238%22%20rx%3D%2211%22%20fill%3D%22%23e5f1ab%22%20stroke%3D%22%2322251c%22%20stroke-width%3D%221.5%22%2F%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%2322251c%22%20stroke-width%3D%221.6%22%20stroke-linejoin%3D%22round%22%20d%3D%22m8.5%2018.1%2011.5-7%2011.5%207-11.5%207zm0%204.9L20%2030l11.5-7m-17-8.5%2011.7%207%22%2F%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2218.1%22%20r%3D%221.6%22%20fill%3D%22%2322251c%22%2F%3E%3C%2Fsvg%3E%0A" alt="">Монтаж<span class="brand-divider"></span><span class="brand-label">Конструктор иллюстраций</span></a>
     <div class="top-actions">
       <button id="examples-open" class="button button-quiet" type="button"><span data-icon="grid"></span>Примеры</button>
       <button id="export" class="button button-dark" type="button"><span data-icon="download"></span>Скачать SVG</button>
@@ -598,6 +598,7 @@ let drag = null;
 let toastTimer;
 let renderedSize = '';
 const drafts = { meaning: scene.title, names: '' };
+const layerKey = () => [...crypto.getRandomValues(new Uint32Array(3))].map(part => part.toString(16).padStart(8, '0')).join('');
 
 function icon(name) {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${icons[name]}</svg>`;
@@ -765,7 +766,7 @@ function compose(event) {
     return;
   }
   const layers = result.assets.map((asset, index) =>
-    newLayer(asset.id, crypto.randomUUID(), mode === 'meaning' && index === 2 ? 'background' : 'main'));
+    newLayer(asset.id, layerKey(), mode === 'meaning' && index === 2 ? 'background' : 'main'));
   const title = mode === 'meaning' ? input : result.assets.map(asset => asset.label).join(' · ');
   const laidOut = layoutLayers(layers, scene.format, scene.layout)
     .sort((a, b) => Number(b.role === 'background') - Number(a.role === 'background'));
@@ -786,7 +787,7 @@ function addObject(id) {
     announce('На холсте уже 60 слоёв.');
     return;
   }
-  const layer = newLayer(id, crypto.randomUUID());
+  const layer = newLayer(id, layerKey());
   const position = layoutLayers([...scene.layers, layer], scene.format, scene.layout).at(-1);
   commit({ ...scene, layers: [...scene.layers, position] }, layer.key);
   announce(`Добавлено: ${ASSETS.get(id).label.toLowerCase()}`);
@@ -812,7 +813,7 @@ function duplicate() {
   const index = scene.layers.findIndex(item => item.key === selected);
   if (index < 0 || scene.layers.length >= 60) return;
   const original = scene.layers[index];
-  const layer = { ...original, key: crypto.randomUUID(), x: Math.min(.99, original.x + .025), y: Math.min(.99, original.y + .035) };
+  const layer = { ...original, key: layerKey(), x: Math.min(.99, original.x + .025), y: Math.min(.99, original.y + .035) };
   const layers = [...scene.layers];
   layers.splice(index + 1, 0, layer);
   commit({ ...scene, layers }, layer.key);
@@ -1019,7 +1020,7 @@ const demo = EXAMPLES.find(example => example.id === params.get('case'));
 if (demo) {
   scene = structuredClone(demo.scene);
   // Opening a demo link leaves the reader's saved composition in place until an edit.
-  history.replaceState(null, '', location.pathname);
+  if (location.protocol !== 'file:') history.replaceState(null, '', location.pathname);
 }
 changeMode(params.get('mode') === 'names' ? 'names' : 'meaning', params.get('mode') === 'names' ?
   (demo?.scene.layers.map(layer => ASSETS.get(layer.assetId).label).join(', ') || '') : scene.title);
